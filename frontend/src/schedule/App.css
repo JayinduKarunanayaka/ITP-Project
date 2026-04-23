@@ -1,0 +1,136 @@
+:root {
+  --ocean-50: #f3fbfd;
+  --ocean-100: #e6f7fb;
+  --ocean-200: #cfeff6;
+  --ocean-400: #63ff93;
+  --ocean-500: #08e16a; /* primary */
+  --ocean-700: #0b6b80; /* darker */
+  --white: #ffffff;
+  --muted: #6b7280;
+  --card-radius: 12px;
+  --max-width: 1100px;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  background: linear-gradient(180deg, var(--ocean-50) 0%, var(--ocean-100) 100%);
+  color: var(--ocean-700);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.app-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  padding: 2rem 1rem;
+  text-align: center;
+}
+.brand {
+  margin: 0;
+  font-size: 1.75rem;
+  color: var(--ocean-700);
+}
+.tagline {
+  margin: .25rem 0 1rem 0;
+  color: var(--muted);
+}
+.patient-controls {
+  display: inline-flex;
+  gap: .5rem;
+  margin-top: .75rem;
+}
+.patient-input {
+  padding: .5rem .75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(11,107,128,0.12);
+  min-width: 220px;
+}
+
+.app-container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.empty-state, .loading, .error, .empty {
+  background: var(--white);
+  border-radius: var(--card-radius);
+  padding: 2rem;
+  box-shadow: 0 6px 18px rgba(11,107,128,0.06);
+  color: var(--muted);
+}
+
+.med-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.med-card {
+  background: var(--white);
+  border-radius: var(--card-radius);
+  padding: 1rem;
+  box-shadow: 0 8px 24px rgba(11,107,128,0.06);
+  border-left: 6px solid var(--ocean-500);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.med-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: .5rem;
+}
+.med-name {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--ocean-700);
+}
+.med-dosage { color: var(--muted); font-size: .95rem; }
+.med-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-top: .5rem;
+  color: var(--muted);
+  font-size: .9rem;
+}
+
+.med-actions { margin-top: .9rem; display:flex; justify-content:flex-end }
+
+.btn {
+  border: none;
+  padding: .5rem .75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--ocean-700);
+}
+.btn.primary {
+  background: linear-gradient(180deg, var(--ocean-400), var(--ocean-500));
+  color: var(--white);
+  box-shadow: 0 6px 12px rgba(42,164,199,0.18);
+}
+.btn:hover { transform: translateY(-1px); }
+
+.app-footer {
+  margin-top: auto;
+  padding: 1rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .patient-controls { flex-direction: column; align-items: stretch }
+  .patient-input { width: 100%; }
+  .med-list { grid-template-columns: 1fr }
+}
+
