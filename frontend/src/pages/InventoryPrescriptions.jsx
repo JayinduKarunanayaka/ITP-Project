@@ -6,6 +6,19 @@ import { AppContent } from '../context/AppContext';
 import PatientSidebar from '../components/PatientSidebar';
 import LoggedIn from '../components/loggedin';
 
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
+
 const InventoryPrescriptions = () => {
     const { patientId } = useParams();
     const navigate = useNavigate();
@@ -15,11 +28,18 @@ const InventoryPrescriptions = () => {
 
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingId, setEditingId] = useState(null);
     const [name, setName] = useState('');
     const [note, setNote] = useState('');
+    const [category, setCategory] = useState('');
+    const [selectedFilterCategory, setSelectedFilterCategory] = useState('All');
+    const [isAddingNewCategory, setIsAddingNewCategory] = useState(false);
     const [file, setFile] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const [uploading, setUploading] = useState(false);
+
+    const uniqueCategories = [...new Set(prescriptions.map(p => p.category).filter(cat => cat && cat !== 'Uncategorized'))];
+    const filteredPrescriptions = prescriptions.filter(p => selectedFilterCategory === 'All' || p.category === selectedFilterCategory || (!p.category && selectedFilterCategory === 'Uncategorized'));
 
     const fileInputRef = useRef(null);
 
@@ -29,7 +49,7 @@ const InventoryPrescriptions = () => {
             try {
                 const { data } = await axios.get(
                     `${backendUrl}/api/user/get-patient/${patientId}`,
-                    { withCredentials: true }
+                    { headers: getAuthHeaders() }
                 );
                 if (data.success) {
                     setPatient(data.patient);
@@ -48,7 +68,7 @@ const InventoryPrescriptions = () => {
             const url = patientId
                 ? `${backendUrl}/api/prescriptions?patientId=${patientId}`
                 : `${backendUrl}/api/prescriptions`;
-            const { data } = await axios.get(url, { withCredentials: true });
+            const { data } = await axios.get(url, { headers: getAuthHeaders() });
             if (data.success && data.prescriptions) {
                 setPrescriptions(data.prescriptions);
             }
@@ -87,47 +107,91 @@ const InventoryPrescriptions = () => {
         }
     };
 
-    const handleUpload = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!file) {
-            toast.error("Please select a file to upload.");
-            return;
-        }
 
         try {
             setUploading(true);
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('name', name);
-            formData.append('note', note);
-            if (patientId) {
-                formData.append('patientId', patientId);
-            }
 
-            const response = await axios.post(`${backendUrl}/api/prescriptions`, formData, {
-                withCredentials: true,
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            if (editingId) {
+                const response = await axios.put(`${backendUrl}/api/prescriptions/${editingId}`, {
+                    name, note, category
+                }, { headers: getAuthHeaders() });
 
-            if (response.data.success) {
-                toast.success('Prescription uploaded successfully');
-                fetchPrescriptions(); // Refresh list
-                closeModal();
+                if (response.data.success) {
+                    toast.success('Prescription updated successfully');
+                    fetchPrescriptions(); // Refresh list
+                    closeModal();
+                } else {
+                    toast.error(response.data.message);
+                }
             } else {
-                toast.error(response.data.message);
+                if (!file) {
+                    toast.error("Please select a file to upload.");
+                    setUploading(false);
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('name', name);
+                formData.append('note', note);
+                formData.append('category', category);
+                if (patientId) {
+                    formData.append('patientId', patientId);
+                }
+
+                const response = await axios.post(`${backendUrl}/api/prescriptions`, formData, {
+                    headers: { ...(getAuthHeaders() || {}), 'Content-Type': 'multipart/form-data' }
+                });
+
+                if (response.data.success) {
+                    toast.success('Prescription uploaded successfully');
+                    fetchPrescriptions(); // Refresh list
+                    closeModal();
+                } else {
+                    toast.error(response.data.message);
+                }
             }
         } catch (error) {
-            toast.error(error.message);
+            toast.error(error.response?.data?.message || error.message);
         } finally {
             setUploading(false);
         }
     };
 
+    const handleDelete = async (id) => {
+        if (!window.confirm("Are you sure you want to completely delete this prescription from the database?")) return;
+        try {
+            const { data } = await axios.delete(`${backendUrl}/api/prescriptions/${id}`, { headers: getAuthHeaders() });
+            if (data.success) {
+                toast.success('Prescription deleted successfully');
+                fetchPrescriptions();
+            } else {
+                toast.error(data.message);
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.message || error.message);
+        }
+    };
+
+    const openEditModal = (presc) => {
+        setEditingId(presc._id);
+        setName(presc.name);
+        setNote(presc.note || '');
+        setCategory(presc.category && presc.category !== 'Uncategorized' ? presc.category : '');
+        setIsAddingNewCategory(false);
+        setIsModalOpen(true);
+    };
+
     const closeModal = () => {
         setIsModalOpen(false);
+        setEditingId(null);
         setFile(null);
         setName('');
         setNote('');
+        setCategory('');
+        setIsAddingNewCategory(false);
     };
 
     const renderContent = () => (
@@ -137,7 +201,17 @@ const InventoryPrescriptions = () => {
                     <h2 className="text-2xl font-bold text-emerald-900 mb-1">Prescription Manager</h2>
                     <p className="text-slate-500 text-sm">Review uploaded documents and add new prescriptions.</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                    <select
+                        value={selectedFilterCategory}
+                        onChange={(e) => setSelectedFilterCategory(e.target.value)}
+                        className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    >
+                        <option value="All">All Categories</option>
+                        {uniqueCategories.map((cat, idx) => (
+                            <option key={idx} value={cat}>{cat}</option>
+                        ))}
+                    </select>
                     <button
                         onClick={() => navigate(-1)}
                         className="px-4 py-2 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition-colors"
@@ -153,25 +227,35 @@ const InventoryPrescriptions = () => {
                 </div>
             </div>
 
-            {prescriptions.length > 0 ? (
+            {filteredPrescriptions.length > 0 ? (
                 <div className="overflow-x-auto rounded-xl border border-slate-100">
                     <table className="w-full text-left border-collapse min-w-[700px]">
                         <thead className="bg-slate-50 border-b border-slate-100">
                             <tr>
-                                <th className="py-4 px-6 text-sm font-semibold text-slate-600 w-1/4">Date Uploaded</th>
-                                <th className="py-4 px-6 text-sm font-semibold text-slate-600 w-1/4">Name</th>
-                                <th className="py-4 px-6 text-sm font-semibold text-slate-600 w-1/4">Note</th>
-                                <th className="py-4 px-6 text-sm font-semibold text-slate-600 text-right w-1/4">Action</th>
+                                <th className="py-4 px-6 text-sm font-semibold text-slate-600 w-1/5">Date Uploaded</th>
+                                <th className="py-4 px-6 text-sm font-semibold text-slate-600 w-1/5">Name</th>
+                                <th className="py-4 px-6 text-sm font-semibold text-slate-600 w-1/5">Category</th>
+                                <th className="py-4 px-6 text-sm font-semibold text-slate-600 w-1/5">Note</th>
+                                <th className="py-4 px-6 text-sm font-semibold text-slate-600 text-right w-1/5">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {prescriptions.map((presc, index) => (
+                            {filteredPrescriptions.map((presc, index) => (
                                 <tr key={index} className="border-b border-slate-50 hover:bg-emerald-50/30 transition-colors">
                                     <td className="py-4 px-6 text-sm text-slate-600">
                                         {new Date(presc.uploadDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                                     </td>
                                     <td className="py-4 px-6">
                                         <p className="font-semibold text-emerald-900 truncate max-w-[200px]" title={presc.name}>{presc.name}</p>
+                                    </td>
+                                    <td className="py-4 px-6">
+                                        {presc.category && presc.category !== 'Uncategorized' ? (
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                                                {presc.category}
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-400 italic text-xs">None</span>
+                                        )}
                                     </td>
                                     <td className="py-4 px-6">
                                         <p className="text-sm text-slate-500 truncate max-w-[250px]" title={presc.note}>{presc.note || <span className="italic text-slate-400">No notes provided</span>}</p>
@@ -185,13 +269,18 @@ const InventoryPrescriptions = () => {
                                             >
                                                 View
                                             </a>
-                                            <a
-                                                href={`${backendUrl}${presc.fileUrl}`}
-                                                download={presc.name}
-                                                className="text-sm font-medium text-emerald-600 hover:text-emerald-800 px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-200"
+                                            <button
+                                                onClick={() => openEditModal(presc)}
+                                                className="text-sm font-medium text-amber-600 hover:text-amber-800 px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors"
                                             >
-                                                Download
-                                            </a>
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(presc._id)}
+                                                className="text-sm font-medium text-rose-600 hover:text-rose-800 px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+                                            >
+                                                Delete
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -213,14 +302,15 @@ const InventoryPrescriptions = () => {
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
                 <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden border border-slate-100 transform transition-all">
                     <div className="px-6 py-5 border-b border-slate-100 bg-slate-50">
-                        <h3 className="text-xl font-bold text-slate-800">Add a Prescription</h3>
-                        <p className="text-sm text-slate-500 mt-1">Upload a document or photo of the prescription.</p>
+                        <h3 className="text-xl font-bold text-slate-800">{editingId ? 'Edit Prescription' : 'Add a Prescription'}</h3>
+                        <p className="text-sm text-slate-500 mt-1">{editingId ? 'Update details below.' : 'Upload a document or photo of the prescription.'}</p>
                     </div>
 
-                    <form onSubmit={handleUpload} className="p-6">
+                    <form onSubmit={handleSubmit} className="p-6">
                         <div className="space-y-5">
                             {/* Drag and drop zone */}
-                            <div>
+                            {!editingId && (
+                                <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">Prescription File *</label>
                                 <div
                                     className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${isDragging ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:border-emerald-400 bg-slate-50'}`}
@@ -249,7 +339,8 @@ const InventoryPrescriptions = () => {
                                         </div>
                                     )}
                                 </div>
-                            </div>
+                                </div>
+                            )}
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">Prescription Name <span className="text-slate-400 font-normal text-xs">(optional)</span></label>
@@ -260,6 +351,53 @@ const InventoryPrescriptions = () => {
                                     onChange={(e) => setName(e.target.value)}
                                     className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
                                 />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Category *</label>
+                                {!isAddingNewCategory ? (
+                                    <select
+                                        value={category}
+                                        onChange={(e) => {
+                                            if (e.target.value === 'ADD_NEW') {
+                                                setIsAddingNewCategory(true);
+                                                setCategory('');
+                                            } else {
+                                                setCategory(e.target.value);
+                                            }
+                                        }}
+                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
+                                        required
+                                    >
+                                        <option value="" disabled>Select a category</option>
+                                        {uniqueCategories.map((cat, idx) => (
+                                            <option key={idx} value={cat}>{cat}</option>
+                                        ))}
+                                        <option value="ADD_NEW" className="font-semibold text-emerald-600">+ Add New Category</option>
+                                    </select>
+                                ) : (
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Enter new category name"
+                                            value={category}
+                                            onChange={(e) => setCategory(e.target.value)}
+                                            className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
+                                            required
+                                            autoFocus
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsAddingNewCategory(false);
+                                                setCategory('');
+                                            }}
+                                            className="px-4 py-2 bg-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-300 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             <div>
@@ -285,10 +423,10 @@ const InventoryPrescriptions = () => {
                             </button>
                             <button
                                 type="submit"
-                                disabled={uploading || !file}
+                                disabled={uploading || (!file && !editingId)}
                                 className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center"
                             >
-                                {uploading ? 'Uploading...' : 'Save Prescription'}
+                                {uploading ? 'Saving...' : (editingId ? 'Update Prescription' : 'Save Prescription')}
                             </button>
                         </div>
                     </form>
