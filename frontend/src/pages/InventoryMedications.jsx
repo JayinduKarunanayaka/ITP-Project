@@ -6,6 +6,19 @@ import { AppContent } from '../context/AppContext';
 import PatientSidebar from '../components/PatientSidebar';
 import LoggedIn from '../components/loggedin';
 
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
+
 const InventoryMedications = () => {
     const { patientId } = useParams();
     const navigate = useNavigate();
@@ -34,7 +47,7 @@ const InventoryMedications = () => {
             try {
                 const { data } = await axios.get(
                     `${backendUrl}/api/user/get-patient/${patientId}`,
-                    { withCredentials: true }
+                    { headers: getAuthHeaders() }
                 );
                 if (data.success) {
                     setPatient(data.patient);
@@ -53,7 +66,7 @@ const InventoryMedications = () => {
             const url = patientId
                 ? `${backendUrl}/api/medications?patientId=${patientId}&includeInventory=true`
                 : `${backendUrl}/api/medications?includeInventory=true`;
-            const { data } = await axios.get(url, { withCredentials: true });
+            const { data } = await axios.get(url, { headers: getAuthHeaders() });
             if (data.success && data.meds) {
                 setMedications(data.meds);
             }
@@ -87,7 +100,7 @@ const InventoryMedications = () => {
                 stockCount: Number(newStockCount),
                 expiryDate: newExpiryDate ? new Date(newExpiryDate).toISOString() : null
             };
-            const response = await axios.put(`${backendUrl}/api/medications/${selectedMed._id}`, payload, { withCredentials: true });
+            const response = await axios.put(`${backendUrl}/api/medications/${selectedMed._id}`, payload, { headers: getAuthHeaders() });
 
             if (response.data.success) {
                 toast.success('Inventory details updated successfully');
@@ -117,7 +130,7 @@ const InventoryMedications = () => {
             };
             if (patientId) payload.patientId = patientId;
 
-            const response = await axios.post(`${backendUrl}/api/medications`, payload, { withCredentials: true });
+            const response = await axios.post(`${backendUrl}/api/medications`, payload, { headers: getAuthHeaders() });
 
             if (response.data.success) {
                 toast.success('Medication added successfully');
@@ -181,7 +194,11 @@ const InventoryMedications = () => {
                                     </td>
                                     <td className="py-4 px-6 text-sm text-slate-600">{med.dosage || `${med.tablets} tablet(s) ${med.time ? `at ${med.time}` : ''}`}</td>
                                     <td className="py-4 px-6">
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${med.stockCount <= 5 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                            med.stockCount === 0 ? 'bg-blue-100 text-blue-800' :
+                                            (med.stockCount > 0 && med.stockCount < 5) ? 'bg-red-100 text-red-800' :
+                                            'bg-emerald-100 text-emerald-800'
+                                        }`}>
                                             {med.stockCount || 0} units
                                         </span>
                                     </td>
