@@ -3,17 +3,17 @@ backend - npm run start
 
 
 admin login 
-admin@medsync.com
-admin123
+masteradmin@medsync.com
+Admin@123
 
 
 patient
 mnkdissanayaka2003@gmail.com
-123456
+Mnk@1234
 
 caretaker
-vihanga@gmail.com
-vihanga123
+caretaker@gmail.com
+Caretaker@123
 
 
 super admin
