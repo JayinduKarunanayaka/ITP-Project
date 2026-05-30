@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "med-mobile-endpoint",
+    "slug": "med-mobile-endpoint",
+    "scheme": "medmobile",
+    "plugins": [
+      "expo-notifications",
+      "expo-system-ui",
+      "expo-task-manager"
+    ],
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "usesCleartextTraffic": true,
+      "package": "com.anonymous.medmobileendpoint",
+      "googleServicesFile": "./google-services.json"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7197f423-94e5-4a1d-b24f-6e9329de8be1"
+      }
+    }
+  }
+}
