@@ -4,7 +4,12 @@ import bcrypt from 'bcryptjs';
 // get user data
 export const getUserData = async (req, res) => {
     try {
-        const { userId } = req.body;
+        // userAuth middleware attaches userId to req.body.userId
+        const userId = req.body.userId || req.userId;
+        if (!userId) {
+            return res.json({ success: false, message: "User not authenticated" });
+        }
+
         const user = await userModel.findById(userId);
 
         if (!user) {
@@ -34,6 +39,7 @@ export const getUserData = async (req, res) => {
         res.json({
             success: true,
             userData: {
+                _id: user._id,
                 name: user.name,
                 email: user.email,
                 birthday: user.birthday ? user.birthday.toISOString().split('T')[0] : "",

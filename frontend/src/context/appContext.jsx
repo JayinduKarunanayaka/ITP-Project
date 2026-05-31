@@ -2,7 +2,10 @@ import axios from "axios";
 import { createContext , useEffect, useState } from "react";
 import { toast } from "react-toastify";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AppContent = createContext()
+
+axios.defaults.withCredentials = true;
 
 export const AppContextProvider = (props)=>{
     

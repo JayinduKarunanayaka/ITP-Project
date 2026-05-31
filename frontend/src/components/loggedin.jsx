@@ -3,7 +3,7 @@ import { AppContent } from '../context/AppContext'
 import { useNavigate, NavLink } from 'react-router-dom'
 import { assets } from '../assets/assets' 
 
-const Home = () => {
+const Home = ({ children }) => {
     const { userData } = useContext(AppContent) 
     const navigate = useNavigate() 
 
@@ -30,13 +30,13 @@ const Home = () => {
         <div className='flex min-h-screen bg-emerald-50'>
             
             {/* --- SIMPLE SIDEBAR --- */}
-            <div className='w-64 bg-white border-r border-emerald-100 flex flex-col p-6 shadow-sm'>
+            <div className='w-64 bg-white border-r border-emerald-100 flex flex-col p-6 shadow-sm sticky top-0 h-screen'>
                 <div className='mb-10'>
                     <h2 className='text-emerald-800 font-black text-xl'>Care - Panel</h2>
                 </div>
 
                 {/* Main Navigation */}
-                <nav className='flex-1 space-y-2'>
+                <nav className='flex-1 space-y-2 overflow-y-auto pr-2 no-scrollbar'>
                     {menuItems.map((item) => (
                         <NavLink 
                             to={item.path} 
@@ -80,16 +80,23 @@ const Home = () => {
             </div>
 
             {/* --- MAIN CONTENT AREA --- */}
-            <main className='flex-1 flex flex-col items-center justify-center text-center p-8'>
-                <div className='bg-white p-12 rounded-[3rem] shadow-xl border border-emerald-100 max-w-lg w-full'>
-                    <h1 className='text-4xl font-black text-emerald-900'>
-                        {userData?.role?.toLowerCase() === 'caretaker' ? 'Caretaker Portal' : 'Patient Portal'}
-                    </h1>
-                    <p className='text-emerald-600 font-medium mt-4 text-lg'>
-                        Welcome back, <span className='font-bold text-gray-800'>{userData?.name || 'User'}</span>!
-                    </p>
-                    
+            <main className='flex-1 flex flex-col p-8 overflow-y-auto bg-emerald-50 w-full'>
+                <div className='flex flex-col items-center justify-center text-center w-full mb-8'>
+                    <div className='bg-white p-12 rounded-[3rem] shadow-xl border border-emerald-100 max-w-lg w-full'>
+                        <h1 className='text-4xl font-black text-emerald-900'>
+                            {userData?.role?.toLowerCase() === 'caretaker' ? 'Caretaker Portal' : 'Patient Portal'}
+                        </h1>
+                        <p className='text-emerald-600 font-medium mt-4 text-lg'>
+                            Welcome back, <span className='font-bold text-gray-800'>{userData?.name || 'User'}</span>!
+                        </p>
+                    </div>
                 </div>
+                
+                {children && (
+                    <div className='w-full'>
+                        {children}
+                    </div>
+                )}
             </main>
         </div>
     )
