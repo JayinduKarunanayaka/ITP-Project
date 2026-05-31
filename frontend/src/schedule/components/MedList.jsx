@@ -19,8 +19,7 @@ export default function MedList({ patientId }) {
           ? `${backendUrl}/api/medications?patientId=${patientId}`
           : `${backendUrl}/api/medications`;
       const res = await axios.get(url, { withCredentials: true })
-      const filteredMeds = (res.data.meds || []).filter(med => med.status !== 'inventory_only');
-      setMeds(filteredMeds)
+      setMeds(res.data.meds || [])
     } catch (err) {
       console.error('Error fetching meds:', err)
       setError(err?.response?.data?.message || err.message || 'Unknown error')
