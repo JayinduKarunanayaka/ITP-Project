@@ -154,7 +154,7 @@ const PatientAppointments = ({ patientId }) => {
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 lg:col-span-2">
-                <h3 className="text-xl font-bold text-emerald-800 mb-6">Upcoming Appointments</h3>
+                <h3 className="text-xl font-bold text-emerald-800 mb-6">Upcoming & Past Appointments</h3>
                 {appointments.length > 0 ? (
                     <div className="space-y-4">
                         {appointments.map((appt, i) => (

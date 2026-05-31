@@ -5,9 +5,7 @@ import {
     getAdherence,
     getHistory,
     generateReport,
-    getDetailedAdherence,
-    updateLog,
-    deleteLog
+    getDetailedAdherence
 } from '../controllers/trackingController.js';
 
 const trackingRouter = express.Router();
@@ -26,11 +24,5 @@ trackingRouter.get('/report/:userId', userAuth, generateReport);
 
 // Detailed Analytics mapping explicitly connected to userId
 trackingRouter.get('/detailed-adherence/:userId', userAuth, getDetailedAdherence);
-
-// Update a specific log
-trackingRouter.put('/:logId', userAuth, updateLog);
-
-// Delete a specific log
-trackingRouter.delete('/:logId', userAuth, deleteLog);
 
 export default trackingRouter;

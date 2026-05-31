@@ -36,63 +36,41 @@ export const calculateAdherencePercentage = async (userId, startDate, endDate) =
     const totalDoses = await TrackingLog.countDocuments(matchCriteria);
     if (totalDoses === 0) return { adherence: 0, taken: 0, missed: 0, total: 0 };
 
-    const onTimeDoses = await TrackingLog.countDocuments({ ...matchCriteria, status: "Taken" });
-    const lateDoses = await TrackingLog.countDocuments({ ...matchCriteria, status: "Late" });
-    const missedDoses = await TrackingLog.countDocuments({ ...matchCriteria, status: { $in: ["Missed", "Skipped"] } });
+    const takenDosesObj = { ...matchCriteria, status: "Taken" };
+    const takenDoses = await TrackingLog.countDocuments(takenDosesObj);
 
-    // Adherence is (Taken + Late) / Total
-    const percentage = Number((((onTimeDoses + lateDoses) / totalDoses) * 100).toFixed(2));
+    const missedDosesObj = { ...matchCriteria, status: "Missed" };
+    const missedDoses = await TrackingLog.countDocuments(missedDosesObj);
 
-    // Aggregate true intake patterns for dynamic bar graphs replacing hardcoded mocks
-    const sDate = startDate ? new Date(startDate) : new Date(new Date().setDate(new Date().getDate() - 6));
-    const eDate = endDate ? new Date(endDate) : new Date();
-    sDate.setHours(0, 0, 0, 0);
-    eDate.setHours(23, 59, 59, 999);
+    const percentage = Number(((takenDoses / totalDoses) * 100).toFixed(2));
 
-    const logsMatch = await TrackingLog.find({
+    // Aggregate true trailing 7-day intake patterns for dynamic bar graphs replacing hardcoded mocks
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const weeklyLogs = await TrackingLog.find({
         userId,
-        scheduledTime: { $gte: sDate, $lte: eDate }
-    }).sort({ scheduledTime: 1 });
+        scheduledTime: { $gte: sevenDaysAgo }
+    });
 
-    // Calculate dynamic distribution (day by day)
-    const dayCount = Math.ceil((eDate - sDate) / (1000 * 60 * 60 * 24));
-    const labels = [];
-    const distributionOnTime = Array(dayCount).fill(0);
-    const distributionMissed = Array(dayCount).fill(0);
-
-    for (let i = 0; i < dayCount; i++) {
-        const d = new Date(sDate);
-        d.setDate(d.getDate() + i);
-        // Label format: 'Mon' for weekly, 'Mar 15' for monthly
-        const label = dayCount <= 7 
-            ? d.toLocaleDateString('en-US', { weekday: 'short' })
-            : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        labels.push(label);
-    }
-
-    logsMatch.forEach(log => {
-        const logDate = new Date(log.scheduledTime);
-        const dayIdx = Math.floor((logDate - sDate) / (1000 * 60 * 60 * 24));
-        if (dayIdx >= 0 && dayIdx < dayCount) {
-            if (log.status === 'Taken' || log.status === 'Late') {
-                distributionOnTime[dayIdx] += 1;
-            } else if (log.status === 'Missed' || log.status === 'Skipped') {
-                distributionMissed[dayIdx] += 1;
-            }
-        }
+    const weeklyDistribution = { onTime: [0,0,0,0,0,0,0], missed: [0,0,0,0,0,0,0] };
+    
+    weeklyLogs.forEach(log => {
+        const d = new Date(log.scheduledTime);
+        let dayIdx = d.getDay() - 1; // Map standard JS 0=Sun to Mon=0
+        if (dayIdx === -1) dayIdx = 6; 
+        
+        if (log.status === 'Taken') weeklyDistribution.onTime[dayIdx] += 1;
+        if (log.status === 'Missed') weeklyDistribution.missed[dayIdx] += 1;
     });
 
     return {
         adherence: percentage,
-        onTime: onTimeDoses,
-        late: lateDoses,
+        taken: takenDoses,
         missed: missedDoses,
         total: totalDoses,
-        weeklyDistribution: {
-            onTime: distributionOnTime,
-            missed: distributionMissed,
-            labels: labels
-        }
+        weeklyDistribution
     };
 };
 

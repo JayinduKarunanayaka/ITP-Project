@@ -24,9 +24,7 @@ const PatientMedications = ({ patientId }) => {
                 : `${backendUrl}/api/medications`;
             const { data } = await axios.get(url, { withCredentials: true });
             if (data.success && data.meds) {
-                // Filter out inventory-only medications on the frontend
-                const filteredMeds = data.meds.filter(med => med.status !== 'inventory_only');
-                setMedications(filteredMeds);
+                setMedications(data.meds);
             }
         } catch (error) {
             console.error(error.message);
