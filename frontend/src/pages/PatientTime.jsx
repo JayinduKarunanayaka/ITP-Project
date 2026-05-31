@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { AppContent } from '../context/AppContext';
 import PatientSidebar from '../components/PatientSidebar';
+import Scheduler from './Scheduler';
 
 const PatientTime = () => {
     const { patientId } = useParams();
@@ -42,7 +43,9 @@ const PatientTime = () => {
                         {/* Corrected Title for this page */}
                         Time Allocation — <span className='text-emerald-500'>{patient?.name || 'Loading...'}</span>
                     </h1>
-                    <p className='text-gray-400 text-sm mt-1'>Manage schedule and care timing for this patient.</p>
+                    <p className='text-gray-400 text-sm mt-1 mb-8'>Manage schedule and care timing for this patient.</p>
+
+                    <Scheduler patientId={patientId} />
                 </div>
             </main>
         </div>

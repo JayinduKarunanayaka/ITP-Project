@@ -9,38 +9,34 @@ import '../assets/tracking-theme.css';
 import IntakeVisualization from '../components/Tracking/IntakeVisualization.jsx';
 import AdherenceSummary from '../components/Tracking/AdherenceSummary.jsx';
 import MedicationLogs from '../components/Tracking/MedicationLogs.jsx';
-import BmiTrackingTile from '../components/Tracking/BmiTrackingTile.jsx';
-import TimingAccuracy from '../components/Tracking/TimingAccuracy.jsx';
 
 const Tracking = () => {
     const { backendUrl, userData } = useContext(AppContent);
     const [stats, setStats] = useState({ adherence: 0, taken: 0, missed: 0, total: 0 });
-    const [chartRange, setChartRange] = useState('weekly');
-    const [refreshKey, setRefreshKey] = useState(0);
-
-    const fetchTrackingData = async () => {
-        if (!userData || !userData._id) return;
-
-        try {
-            // Fetch the adherence directly matching the logged-in patient's own ID
-            const { data } = await axios.get(
-                `${backendUrl}/api/tracking/adherence/${userData._id}?type=${chartRange}`,
-                { withCredentials: true }
-            );
-
-            if (data.success) {
-                setStats(data);
-            } else {
-                console.error("Tracking API Error:", data.message);
-            }
-        } catch (error) {
-            console.error("Axios Tracking Integration Error:", error);
-        }
-    };
 
     useEffect(() => {
+        const fetchTrackingData = async () => {
+            if (!userData || !userData._id) return;
+
+            try {
+                // Fetch the adherence directly matching the logged-in patient's own ID
+                const { data } = await axios.get(
+                    `${backendUrl}/api/tracking/adherence/${userData._id}?type=monthly`,
+                    { withCredentials: true }
+                );
+
+                if (data.success) {
+                    setStats(data);
+                } else {
+                    console.error("Tracking API Error:", data.message);
+                }
+            } catch (error) {
+                console.error("Axios Tracking Integration Error:", error);
+            }
+        };
+
         fetchTrackingData();
-    }, [backendUrl, userData, chartRange]);
+    }, [backendUrl, userData]);
 
     const exportToPDF = async () => {
         const input = document.getElementById('tracking-dashboard-content');
@@ -109,30 +105,17 @@ const Tracking = () => {
                         backendUrl={backendUrl}
                         patientId={userData._id}
                     />
-
-                    <BmiTrackingTile patientId={userData._id} refreshTrigger={refreshKey} />
-
-                    <TimingAccuracy data={{
-                        onTime: stats.total > 0 ? Math.round((stats.onTime / stats.total) * 100) : 0,
-                        late: stats.total > 0 ? Math.round((stats.late / stats.total) * 100) : 0,
-                        missed: stats.total > 0 ? Math.round((stats.missed / stats.total) * 100) : 0
-                    }} />
                     
                     <IntakeVisualization 
                         pieDataValues={[
-                            stats.onTime || 0,
-                            stats.late || 0,
+                            stats.taken || 0,
+                            0, // Late 
                             stats.missed || 0
                         ]}
-                        barDataValues={stats.weeklyDistribution || { onTime: [0,0,0,0,0,0,0], missed: [0,0,0,0,0,0,0], labels: [] }}
-                        activeRange={chartRange}
-                        onRangeChange={setChartRange}
+                        barDataValues={stats.weeklyDistribution || { onTime: [0,0,0,0,0,0,0], missed: [0,0,0,0,0,0,0] }}
                     />
                     
-                    <MedicationLogs 
-                        patientId={userData?._id} 
-                        onLogAdded={() => { fetchTrackingData(); setRefreshKey(prev => prev + 1); }} 
-                    />
+                    <MedicationLogs />
                 </div>
             </div>
         </LoggedIn>

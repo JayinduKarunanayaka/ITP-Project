@@ -6,7 +6,6 @@ import axios from 'axios'
 import { toast } from 'react-toastify'
 
 const Login = () => {
-
     const navigate = useNavigate()
     const location = useLocation()
 
@@ -24,50 +23,49 @@ const Login = () => {
     const [birthday, setBirthday] = useState('')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
-    
-    // Updated: loginRole is now used for both Login and Sign Up
-    const [loginRole, setLoginRole] = useState('Patient');
+    const [loginRole, setLoginRole] = useState('Patient')
 
     const onSubmitHandler = async (e) => {
         try {
-            e.preventDefault();
+            e.preventDefault()
             axios.defaults.withCredentials = true
 
             if (state === 'Sign Up') {
-                // Updated: Added 'role' to the registration payload
-                const { data } = await axios.post(backendUrl + '/api/auth/register', { 
-                    name, 
-                    birthday, 
-                    email, 
-                    password, 
-                    role: loginRole 
+                const { data } = await axios.post(backendUrl + '/api/auth/register', {
+                    name,
+                    birthday,
+                    email,
+                    password,
+                    role: loginRole
                 })
 
                 if (data.success) {
                     setIsLoggedin(true)
-                    await getUserData();
-                    // Conditional navigation based on role
-                    if (loginRole === 'Caretaker') {
-                        navigate('/medication')
+                    const userData = await getUserData()
+
+                    // ✅ Redirect based on actual backend role
+                    if (userData.role === 'Admin') {
+                        navigate('/admin-dashboard')
+                    } else if (userData.role === 'Caretaker') {
+                        navigate('/caretaker-dashboard') // or /medication if that’s your caretaker view
                     } else {
-                        navigate('/medication')
+                        navigate('/medication') // default for Patient
                     }
                 } else {
                     toast.error(data.message)
                 }
             } else {
-                // Login Logic
                 const { data } = await axios.post(backendUrl + '/api/auth/login', { email, password })
 
                 if (data.success) {
                     setIsLoggedin(true)
-                    await getUserData();
-                    
-                    // Role-based redirection
-                    if (loginRole === 'Admin') {
+                    await getUserData()
+
+                    // ✅ Use backend role for redirect
+                    if (data.role === 'Admin') {
                         navigate('/admin-dashboard')
-                    } else if (loginRole === 'Caretaker') {
-                        navigate('/medication')
+                    } else if (data.role === 'Caretaker') {
+                        navigate('/caretaker-dashboard')
                     } else {
                         navigate('/medication')
                     }
@@ -98,9 +96,9 @@ const Login = () => {
                             key={role}
                             onClick={() => setLoginRole(role)}
                             className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                                loginRole === role 
-                                ? 'bg-emerald-600 text-white shadow-md' 
-                                : 'text-emerald-600 hover:bg-emerald-100'
+                                loginRole === role
+                                    ? 'bg-emerald-600 text-white shadow-md'
+                                    : 'text-emerald-600 hover:bg-emerald-100'
                             }`}
                         >
                             {role}
@@ -137,9 +135,9 @@ const Login = () => {
                     )}
 
                     <button className={`w-full py-3 rounded-xl text-white font-bold text-lg transition-all shadow-lg ${
-                        loginRole === 'Admin' && state === 'Login' 
-                        ? 'bg-red-600 hover:bg-red-700 shadow-red-100' 
-                        : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100'
+                        loginRole === 'Admin' && state === 'Login'
+                            ? 'bg-red-600 hover:bg-red-700 shadow-red-100'
+                            : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100'
                     }`}>
                         {state === 'Login' ? `Login as ${loginRole}` : 'Create Account'}
                     </button>
@@ -150,15 +148,15 @@ const Login = () => {
                         <>
                             Already have an account?{' '}
                             <span onClick={() => setState('Login')} className='text-emerald-600 font-bold cursor-pointer hover:underline'>
-                                Login here
-                            </span>
+                Login here
+              </span>
                         </>
                     ) : (
                         <>
                             Don't have an account?{' '}
-                            <span onClick={() => {setState('Sign Up'); setLoginRole('Patient');}} className='text-emerald-600 font-bold cursor-pointer hover:underline'>
-                                Sign Up here
-                            </span>
+                            <span onClick={() => { setState('Sign Up'); setLoginRole('Patient'); }} className='text-emerald-600 font-bold cursor-pointer hover:underline'>
+                Sign Up here
+              </span>
                         </>
                     )}
                 </p>
