@@ -1,6 +1,6 @@
 import React from 'react';
 
-const TimingAccuracy = ({ data }) => {
+const TimingAccuracy = ({ data, insight }) => {
     if (!data) return null;
 
     return (
@@ -29,7 +29,7 @@ const TimingAccuracy = ({ data }) => {
                 </div>
                 <div className="behavioral-insight">
                     <i className="fa-solid fa-lightbulb"></i>
-                    <p><strong>Insight:</strong> Most missed doses occur during the evening. Consider setting an extra alarm.</p>
+                    <p><strong>Insight:</strong> {insight || 'Your timing pattern looks steady right now.'}</p>
                 </div>
             </div>
         </div>

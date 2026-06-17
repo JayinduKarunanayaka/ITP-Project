@@ -1,7 +1,20 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { AppContent } from '../context/AppContext';
+
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
 
 const PatientAppointments = ({ patientId }) => {
     const { backendUrl } = useContext(AppContent);
@@ -14,23 +27,25 @@ const PatientAppointments = ({ patientId }) => {
     const [appointments, setAppointments] = useState([]);
     const [editId, setEditId] = useState(null);
 
-    const fetchAppointments = async () => {
+    const fetchAppointments = useCallback(async () => {
         try {
             const url = patientId 
-                ? `${backendUrl}/api/appointments?patientId=${patientId}` 
+                ? `${backendUrl}/api/appointments?patientId=${patientId}&userId=${patientId}` 
                 : `${backendUrl}/api/appointments`;
-            const { data } = await axios.get(url, { withCredentials: true });
+            const { data } = await axios.get(url, { headers: getAuthHeaders() });
             if (data.success && data.appointments) {
                 setAppointments(data.appointments);
             }
         } catch (error) {
             console.error(error.message);
         }
-    };
+    }, [backendUrl, patientId]);
 
     useEffect(() => {
-        fetchAppointments();
-    }, []);
+        (async () => {
+            await fetchAppointments();
+        })();
+    }, [fetchAppointments]);
 
     const onSubmitHandler = async (e) => {
         e.preventDefault();
@@ -49,14 +64,18 @@ const PatientAppointments = ({ patientId }) => {
         try {
             setLoading(true);
             const payload = { doctor, doctorSpecialty, hospitalName, date, notes };
-            if (patientId) payload.patientId = patientId;
+            if (patientId) {
+                payload.patientId = patientId;
+                payload.userId = patientId;
+            }
 
             let data;
+            const config = { headers: getAuthHeaders() };
             if (editId) {
-                const response = await axios.put(`${backendUrl}/api/appointments/${editId}`, payload, { withCredentials: true });
+                const response = await axios.put(`${backendUrl}/api/appointments/${editId}`, payload, config);
                 data = response.data;
             } else {
-                const response = await axios.post(backendUrl + '/api/appointments', payload, { withCredentials: true });
+                const response = await axios.post(backendUrl + '/api/appointments', payload, config);
                 data = response.data;
             }
 
@@ -67,8 +86,15 @@ const PatientAppointments = ({ patientId }) => {
                 setHospitalName('');
                 setDate('');
                 setNotes('');
+                if (data.appointment) {
+                    setAppointments((current) => {
+                        if (editId) {
+                            return current.map((item) => (item._id === data.appointment._id ? data.appointment : item));
+                        }
+                        return [data.appointment, ...current].sort((a, b) => new Date(a.date) - new Date(b.date));
+                    });
+                }
                 setEditId(null);
-                fetchAppointments();
             } else {
                 toast.error(data.message);
             }
@@ -95,10 +121,11 @@ const PatientAppointments = ({ patientId }) => {
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to delete this appointment?")) return;
         try {
-            const { data } = await axios.delete(`${backendUrl}/api/appointments/${id}`, { withCredentials: true });
+            const { data } = await axios.delete(`${backendUrl}/api/appointments/${id}`, { headers: getAuthHeaders() });
             if (data.success) {
                 toast.success(data.message || "Appointment deleted");
-                fetchAppointments();
+                setAppointments((current) => current.filter((item) => item._id !== id));
+                await fetchAppointments();
                 if (editId === id) {
                     setEditId(null);
                     setDoctor('');
@@ -154,7 +181,7 @@ const PatientAppointments = ({ patientId }) => {
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 lg:col-span-2">
-                <h3 className="text-xl font-bold text-emerald-800 mb-6">Upcoming & Past Appointments</h3>
+                <h3 className="text-xl font-bold text-emerald-800 mb-6">Upcoming Appointments</h3>
                 {appointments.length > 0 ? (
                     <div className="space-y-4">
                         {appointments.map((appt, i) => (

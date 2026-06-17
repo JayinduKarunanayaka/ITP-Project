@@ -1,38 +1,77 @@
 import { useState, useEffect } from 'react';
 
 const NoteModal = ({ isOpen, onClose, onSubmit, note }) => {
-    //form state
-    const [formData, setFormData] = useState({
-        title: '',
-        category: 'General',
-        date: new Date().toISOString().split('T')[0],
-        time: new Date().toTimeString().slice(0, 5),
-        mood: 'Neutral',
-        physicalCondition: 'Good',
-        severity: 'Mild',
-        notes: '',
+    const getInitialFormState = (sourceNote = null) => ({
+        title: sourceNote?.title || '',
+        category: sourceNote?.category || 'General',
+        date: sourceNote?.date ? new Date(sourceNote.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        time: sourceNote?.time || new Date().toTimeString().slice(0, 5),
+        mood: sourceNote?.mood || 'Neutral',
+        physicalCondition: sourceNote?.physicalCondition || 'Good',
+        severity: sourceNote?.severity || 'Mild',
+        symptomName: sourceNote?.symptomName || '',
+        doctor: sourceNote?.doctor || '',
+        location: sourceNote?.location || '',
+        notes: sourceNote?.notes || '',
     });
+
+    //form state
+    const [formData, setFormData] = useState(getInitialFormState());
 
     // populate form when editing existing note
     useEffect(() => {
-        if (note) {
-            setFormData({
-                title: note.title,
-                category: note.category,
-                date: new Date(note.date).toISOString().split('T')[0],
-                time: note.time,
-                mood: note.mood,
-                physicalCondition: note.physicalCondition,
-                severity: note.severity || 'Mild',
-                notes: note.notes,
-            });
-        }
+        setFormData(getInitialFormState(note));
     }, [note]);
+
+    const category = formData.category;
+    const showSeverity = category === 'Symptom';
+    const showPhysicalCondition = category !== 'Appointment';
+    const showAppointmentFields = category === 'Appointment';
+    const showSymptomName = category === 'Symptom';
+
+    const handleCategoryChange = (value) => {
+        setFormData((current) => ({
+            ...current,
+            category: value,
+            severity: value === 'Symptom' ? current.severity || 'Mild' : '',
+            physicalCondition: value === 'Appointment' ? '' : current.physicalCondition || 'Good',
+            symptomName: value === 'Symptom' ? current.symptomName : '',
+            doctor: value === 'Appointment' ? current.doctor : '',
+            location: value === 'Appointment' ? current.location : '',
+        }));
+    };
+
+    const buildSubmissionPayload = () => {
+        const basePayload = {
+            title: formData.title,
+            category: formData.category,
+            date: formData.date,
+            time: formData.time,
+            mood: formData.mood,
+            notes: formData.notes,
+        };
+
+        if (showPhysicalCondition) {
+            basePayload.physicalCondition = formData.physicalCondition;
+        }
+
+        if (showSeverity) {
+            basePayload.severity = formData.severity;
+            basePayload.symptomName = formData.symptomName || formData.title;
+        }
+
+        if (showAppointmentFields) {
+            basePayload.doctor = formData.doctor;
+            basePayload.location = formData.location;
+        }
+
+        return basePayload;
+    };
 
     //form submission
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSubmit(formData);
+        onSubmit(buildSubmissionPayload());
     };
 
     //CONDITIONAL RENDER: Don't render modal if not open
@@ -80,7 +119,7 @@ const NoteModal = ({ isOpen, onClose, onSubmit, note }) => {
                                 <select
                                     required
                                     value={formData.category}
-                                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                    onChange={(e) => handleCategoryChange(e.target.value)}
                                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500"
                                 >
                                     <option>General</option>
@@ -102,7 +141,7 @@ const NoteModal = ({ isOpen, onClose, onSubmit, note }) => {
                             </div>
                         </div>
 
-                        {/* Time & Mood */}
+                        {/* Time */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Time *</label>
@@ -114,52 +153,83 @@ const NoteModal = ({ isOpen, onClose, onSubmit, note }) => {
                                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Mood</label>
-                                <select
-                                    value={formData.mood}
-                                    onChange={(e) => setFormData({ ...formData, mood: e.target.value })}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500"
-                                >
-                                    <option>Great</option>
-                                    <option>Good</option>
-                                    <option>Neutral</option>
-                                    <option>Poor</option>
-                                    <option>Terrible</option>
-                                </select>
+                        </div>
+
+                        {showAppointmentFields && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Doctor *</label>
+                                    <input
+                                        type="text"
+                                        required={showAppointmentFields}
+                                        value={formData.doctor}
+                                        onChange={(e) => setFormData({ ...formData, doctor: e.target.value })}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                                        placeholder="e.g., Dr. Smith"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Location *</label>
+                                    <input
+                                        type="text"
+                                        required={showAppointmentFields}
+                                        value={formData.location}
+                                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                                        placeholder="e.g., City Hospital"
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        )}
 
-                        {/* Physical Condition */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Physical Condition</label>
-                            <select
-                                value={formData.physicalCondition}
-                                onChange={(e) => setFormData({ ...formData, physicalCondition: e.target.value })}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500"
-                            >
-                                <option>Excellent</option>
-                                <option>Good</option>
-                                <option>Fair</option>
-                                <option>Poor</option>
-                                <option>Very Poor</option>
-                            </select>
-                        </div>
+                        {showSymptomName && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Symptom Name *</label>
+                                <input
+                                    type="text"
+                                    required={showSymptomName}
+                                    value={formData.symptomName}
+                                    onChange={(e) => setFormData({ ...formData, symptomName: e.target.value, title: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                                    placeholder="e.g., Headache, Nausea"
+                                />
+                            </div>
+                        )}
 
-                        {/* Severity */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Severity Level</label>
-                            <select
-                                value={formData.severity}
-                                onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500"
-                            >
-                                <option value="Mild">Mild</option>
-                                <option value="Moderate">Moderate</option>
-                                <option value="Severe">Severe</option>
-                                <option value="Critical">Critical</option>
-                            </select>
-                        </div>
+                        {showPhysicalCondition && (
+                            <div className={showSeverity ? 'grid grid-cols-2 gap-4' : ''}>
+                                <div className={showSeverity ? '' : 'w-full'}>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Physical Condition</label>
+                                    <select
+                                        value={formData.physicalCondition}
+                                        onChange={(e) => setFormData({ ...formData, physicalCondition: e.target.value })}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                                    >
+                                        <option>Excellent</option>
+                                        <option>Good</option>
+                                        <option>Fair</option>
+                                        <option>Poor</option>
+                                        <option>Very Poor</option>
+                                    </select>
+                                </div>
+
+                                {showSeverity && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Severity Level</label>
+                                        <select
+                                            value={formData.severity}
+                                            onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                                        >
+                                            <option value="Mild">Mild</option>
+                                            <option value="Moderate">Moderate</option>
+                                            <option value="Severe">Severe</option>
+                                            <option value="Critical">Critical</option>
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Additional Notes-text area*/}
                         <div>

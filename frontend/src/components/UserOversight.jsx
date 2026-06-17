@@ -8,35 +8,44 @@ import autoTable from 'jspdf-autotable';
 
 const UserOversight = () => {
     const { backendUrl } = useContext(AppContent)
-    const [patients, setPatients] = useState([])
+    const [users, setUsers] = useState([]) 
     const [loading, setLoading] = useState(true)
 
-    const fetchPatients = async () => {
+    const fetchUsers = async () => {
         try {
             setLoading(true)
             axios.defaults.withCredentials = true
-            const { data } = await axios.get(backendUrl + '/api/admin/all-patients')
+            const token = localStorage.getItem('med_app_auth_token') || '';
+            const { data } = await axios.get(backendUrl + '/api/admin/all-users', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
             if (data.success) {
-                setPatients(data.patients)
+                setUsers(data.users || [] ); 
+            } else {
+                toast.error(data.message);
             }
         } catch (error) {
-            toast.error("Error fetching patient data")
+            toast.error("Error fetching user data")
         } finally {
             setLoading(false)
         }
     }
 
     const removeUser = async (userId) => {
-        if (window.confirm("Are you sure?")) {
+        if (window.confirm("Are you sure you want to remove this user?")) {
             try {
+                const token = localStorage.getItem('med_app_auth_token') || '';
                 const { data } = await axios.post(
                     backendUrl + '/api/admin/delete-user', 
                     { targetUserId: userId },
-                    { withCredentials: true } 
+                    { 
+                        withCredentials: true,
+                        headers: { Authorization: `Bearer ${token}` }
+                    } 
                 );
                 if (data.success) {
                     toast.success(data.message);
-                    fetchPatients();
+                    fetchUsers();
                 } else {
                     toast.error(data.message);
                 }
@@ -51,17 +60,18 @@ const UserOversight = () => {
             const doc = new jsPDF();
 
             doc.setFontSize(18);
-            doc.text('Patient Directory Report', 14, 22);
+            doc.text('User Directory Report', 14, 22);
             doc.setFontSize(11);
             doc.setTextColor(100);
             doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
 
-            const tableColumn = ["User ID", "Name", "Email", "Status"];
-            const tableRows = patients.map(patient => [
-                patient._id.slice(-8),
-                patient.name,
-                patient.email,
-                patient.isAccountVerified ? "Verified" : "Pending"
+            const tableColumn = ["User ID", "Name", "Email", "Role", "Status"];
+            const tableRows = users.map(user => [
+                user._id.slice(-8),
+                user.name,
+                user.email,
+                user.role,
+                user.isAccountVerified ? "Verified" : "Pending"
             ]);
 
             autoTable(doc, {
@@ -73,15 +83,15 @@ const UserOversight = () => {
                 margin: { top: 35 },
             });
 
-            doc.save(`Patient_Report_${new Date().getTime()}.pdf`);
+            doc.save(`User_Report_${new Date().getTime()}.pdf`);
         } catch (error) {
             console.error("PDF Generation Error:", error);
             toast.error("Failed to generate PDF");
         }
-        };
+    };
 
     useEffect(() => {
-        fetchPatients()
+        fetchUsers()
     }, [])
 
     if (loading) return (
@@ -94,7 +104,7 @@ const UserOversight = () => {
         <div className='w-full'>
             <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-3'>
                 <div>
-                    <p className='text-xs text-gray-500'>Total Registered: {patients.length}</p>
+                    <p className='text-xs text-gray-500'>Total Registered Users: {users.length}</p>
                 </div>
                 <button 
                     onClick={downloadPDF}
@@ -108,24 +118,35 @@ const UserOversight = () => {
                 <table className='w-full text-left border-collapse'>
                     <thead className='bg-emerald-50 text-emerald-700 uppercase text-[11px] font-bold'>
                         <tr>
-                            <th className='px-4 py-4 text-nowrap'>User ID</th>
-                            <th className='px-4 py-4 text-nowrap'>Patient Name</th>
-                            <th className='px-4 py-4 text-nowrap'>Status</th>
-                            <th className='px-4 py-4 text-center text-nowrap'>Actions</th>
+                            <th className='px-4 py-4'>User ID</th>
+                            <th className='px-4 py-4'>User Details</th>
+                            <th className='px-4 py-4 text-center'>Role</th> {/* NEW COLUMN */}
+                            <th className='px-4 py-4'>Status</th>
+                            <th className='px-4 py-4 text-center'>Actions</th>
                         </tr>
                     </thead>
                     <tbody className='divide-y divide-emerald-50'>
-                        {patients.map((patient) => (
-                            <tr key={patient._id} className='hover:bg-emerald-50/30 transition-all'>
+                        {users.map((user) => (
+                            <tr key={user._id} className='hover:bg-emerald-50/30 transition-all'>
                                 <td className='px-4 py-4 text-[10px] font-mono text-gray-400'>
-                                    #{patient._id.slice(-8)}
+                                    #{user._id.slice(-8)}
                                 </td>
                                 <td className='px-4 py-4'>
-                                    <p className='font-bold text-emerald-900 text-sm'>{patient.name}</p>
-                                    <p className='text-xs text-gray-500'>{patient.email}</p>
+                                    <p className='font-bold text-emerald-900 text-sm'>{user.name}</p>
+                                    <p className='text-xs text-gray-500'>{user.email}</p>
+                                </td>
+                                <td className='px-4 py-4 text-center'>
+                                    {/* Role Badge */}
+                                    <span className={`inline-block px-2 py-1 rounded-md text-[9px] font-bold uppercase ${
+                                        user.role === 'Caretaker' 
+                                        ? 'bg-blue-100 text-blue-600 border border-blue-200' 
+                                        : 'bg-emerald-100 text-emerald-600 border border-emerald-200'
+                                    }`}>
+                                        {user.role}
+                                    </span>
                                 </td>
                                 <td className='px-4 py-4'>
-                                    {patient.isAccountVerified ? (
+                                    {user.isAccountVerified ? (
                                         <span className='inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase'>
                                             Verified
                                         </span>
@@ -137,9 +158,8 @@ const UserOversight = () => {
                                 </td>
                                 <td className="px-4 py-4 text-center">
                                     <button 
-                                        onClick={() => removeUser(patient._id)}
+                                        onClick={() => removeUser(user._id)}
                                         className="inline-flex items-center px-4 py-1.5 rounded-full bg-rose-50 text-rose-500 text-[10px] font-bold uppercase hover:bg-rose-100 border border-rose-100 transition-all"
-                                        title="Delete Patient"
                                     >
                                         Remove
                                     </button>
@@ -149,9 +169,9 @@ const UserOversight = () => {
                     </tbody>
                 </table>
                 
-                {patients.length === 0 && (
+                {users.length === 0 && (
                     <div className='text-center py-20 bg-emerald-50/10 rounded-b-xl'>
-                        <p className='text-gray-400 italic font-medium'>No patients currently registered in the system.</p>
+                        <p className='text-gray-400 italic font-medium'>No users currently registered in the system.</p>
                     </div>
                 )}
             </div>

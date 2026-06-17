@@ -20,6 +20,7 @@ import prescriptionRouter from "./routes/prescriptionRoutes.js";
 import trackingRouter from "./routes/trackingRoutes.js";
 import initMissedDoseCron from "./jobs/missedDoseCron.js";
 import initScheduledReminderCron from "./jobs/scheduledReminderCron.js";
+import initAppointmentReminderCron from "./jobs/appointmentReminderCron.js";
 
 //health notes & feedback module routes
 import notesRouter from "./routes/notes.js";
@@ -78,4 +79,5 @@ app.listen(port, () => {
     // Initialize scheduled jobs
     initMissedDoseCron();
     initScheduledReminderCron();
+    initAppointmentReminderCron();
 });

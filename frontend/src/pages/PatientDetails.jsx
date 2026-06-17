@@ -1,48 +1,37 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { AppContent } from '../context/AppContext';
-import axios from 'axios';
+import API from '../services/api.js';
 import { toast } from 'react-toastify';
 import PatientSidebar from '../components/PatientSidebar';
 
 const PatientDetails = () => {
     const { patientId } = useParams(); 
     const navigate = useNavigate();
-    const { backendUrl } = useContext(AppContent);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [patientData, setPatientData] = useState(null);
 
-    const fetchPatientDetails = async () => {
+    const fetchPatientDetails = useCallback(async () => {
         try {
             setLoading(true);
-            // Matches backend expectation for URL params
-            const { data } = await axios.get(
-                `${backendUrl}/api/user/get-patient-by-id/${patientId}`, 
-                { withCredentials: true }
-            );
-            
+            const { data } = await API.get(`/user/get-patient/${patientId}`);
+
             if (data.success) {
                 setPatientData(data.patient);
             } else {
                 toast.error(data.message);
             }
-        } catch (error) {
+        } catch {
             toast.error("Error loading profile");
         } finally {
             setLoading(false);
         }
-    };
+    }, [patientId]);
 
     const handleUpdate = async (e) => {
         e.preventDefault();
         try {
-            // Your controller expects _id in the body for updatePatient
-            const { data } = await axios.post(
-                `${backendUrl}/api/user/update-patient`, 
-                { _id: patientId, ...patientData }, 
-                { withCredentials: true }
-            );
+            const { data } = await API.post('/user/update-patient', { _id: patientId, ...patientData });
             if (data.success) {
                 toast.success("Profile updated successfully");
                 setIsEditing(false);
@@ -50,19 +39,15 @@ const PatientDetails = () => {
             } else {
                 toast.error(data.message);
             }
-        } catch (error) {
+        } catch {
             toast.error("Failed to update");
         }
     };
 
-    // Logout functionality to return to dashboard
-    const handleLogout = () => {
-        navigate('/caretaker-dashboard');
-    };
 
     useEffect(() => { 
         if (patientId) fetchPatientDetails(); 
-    }, [patientId]);
+    }, [patientId, fetchPatientDetails]);
 
     if (loading) return <div className='p-10 text-center'>Loading Profile...</div>;
 

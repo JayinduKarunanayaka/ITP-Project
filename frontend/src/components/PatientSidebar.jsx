@@ -1,18 +1,29 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { NavLink, useParams, Link, useNavigate } from 'react-router-dom';
+import { AppContent } from '../context/AppContext';
+
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
 
 const PatientSidebar = ({ patientName }) => {
     const { patientId, id } = useParams();
     const navigate = useNavigate();
+    const { userData } = useContext(AppContent);
     const activeId = patientId || id;
 
     const menu = [
-        { name: 'Medical Info', path: `/patient/${activeId}/info`},
-        { name: 'Time Allocation', path: `/patient/${activeId}/time`},
-        { name: 'Health Notes', path: `/patient/${activeId}/notes`},
-        { name: 'Adherence Tracking', path: `/patient/${activeId}/tracking`},
-        { name: 'Inventory', path: `/patient/${activeId}/inventory`},
+        { name: 'Medical Info', path: `/patient/${activeId}/info` },
+        { name: 'Time Allocation', path: `/patient/${activeId}/time` },
+        { name: 'Health Notes', path: `/patient/${activeId}/notes` },
+        { name: 'Adherence Tracking', path: `/patient/${activeId}/tracking` },
+        { name: 'Inventory', path: `/patient/${activeId}/inventory` },
     ];
+
 
     return (
         <div className='w-64 bg-white border-r border-emerald-100 flex flex-col p-6'>
@@ -22,18 +33,26 @@ const PatientSidebar = ({ patientName }) => {
 
             <nav className='flex-1 space-y-3'>
                 {menu.map(item => (
-                    <NavLink 
-                        to={item.path} 
+                    <NavLink
+                        to={item.path}
                         key={item.name}
-                        className={({isActive}) => `flex items-center gap-3 p-3 rounded-xl font-medium transition-all ${isActive ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-500 hover:bg-emerald-50'}`}
+                        className={({ isActive }) => `flex items-center gap-3 p-3 rounded-xl font-medium transition-all ${isActive ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-500 hover:bg-emerald-50'}`}
                     >
                         {item.name}
                     </NavLink>
                 ))}
+                {readSavedSessionToken() && (
+                    <NavLink
+                        to={`/patient/${activeId}/feedback`}
+                        className={({ isActive }) => `flex items-center gap-3 p-3 rounded-xl font-medium transition-all ${isActive ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-500 hover:bg-emerald-50'}`}
+                    >
+                        Feedback
+                    </NavLink>
+                )}
             </nav>
 
             <div className='mt-auto pt-6 border-t border-emerald-50 flex flex-col gap-4'>
-                <Link 
+                <Link
                     to={`/patient-details/${activeId}`}
                     className='flex items-center gap-3 p-2 rounded-xl hover:bg-emerald-50 transition-all cursor-pointer'
                 >
@@ -47,7 +66,7 @@ const PatientSidebar = ({ patientName }) => {
                 </Link>
 
                 {/* Logout / Exit Button */}
-                <button 
+                <button
                     onClick={() => navigate('/caretaker-dashboard')}
                     className='w-full py-3 bg-rose-50 text-rose-600 font-bold rounded-xl hover:bg-rose-100 transition-all text-sm'
                 >

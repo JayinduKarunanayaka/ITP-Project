@@ -1,7 +1,20 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { AppContent } from '../context/AppContext';
+
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
 
 const PatientRecords = ({ patientId }) => {
     const { backendUrl } = useContext(AppContent);
@@ -12,23 +25,25 @@ const PatientRecords = ({ patientId }) => {
     const [editId, setEditId] = useState(null);
     const [file, setFile] = useState(null);
 
-    const fetchRecords = async () => {
+    const fetchRecords = useCallback(async () => {
         try {
             const url = patientId 
                 ? `${backendUrl}/api/records?patientId=${patientId}` 
                 : `${backendUrl}/api/records`;
-            const { data } = await axios.get(url, { withCredentials: true });
+            const { data } = await axios.get(url, { headers: getAuthHeaders() });
             if (data.success && data.records) {
                 setRecords(data.records);
             }
         } catch (error) {
             console.error(error.message);
         }
-    };
+    }, [backendUrl, patientId]);
 
     useEffect(() => {
-        fetchRecords();
-    }, []);
+        (async () => {
+            await fetchRecords();
+        })();
+    }, [fetchRecords]);
 
     const onSubmitHandler = async (e) => {
         e.preventDefault();
@@ -47,11 +62,7 @@ const PatientRecords = ({ patientId }) => {
             if (file) formData.append('file', file);
 
             let data;
-            const config = { 
-                withCredentials: true,
-                headers: { 'Content-Type': 'multipart/form-data' }
-            };
-
+            const config = { headers: { ...(getAuthHeaders() || {}), 'Content-Type': 'multipart/form-data' } };
             if (editId) {
                 const response = await axios.put(`${backendUrl}/api/records/${editId}`, formData, config);
                 data = response.data;
@@ -91,7 +102,7 @@ const PatientRecords = ({ patientId }) => {
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to delete this record?")) return;
         try {
-            const { data } = await axios.delete(`${backendUrl}/api/records/${id}`, { withCredentials: true });
+            const { data } = await axios.delete(`${backendUrl}/api/records/${id}`, { headers: getAuthHeaders() });
             if (data.success) {
                 toast.success(data.message || "Record deleted");
                 fetchRecords();

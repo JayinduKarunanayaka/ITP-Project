@@ -1,7 +1,7 @@
 import React, {useState, useEffect, useContext} from 'react';
 import '../schedule/App.css';
 import MedList from '../schedule/components/MedList.jsx';
-import { AppContent } from '../context/AppContext';
+import { AppContent } from '../context/appContext';
 
 function Scheduler({ patientId: propPatientId }) {
     const { isLoggedin } = useContext(AppContent);

@@ -1,0 +1,16 @@
+module.exports = {
+  root: true,
+  env: {
+    node: true,
+    es2020: true
+  },
+  parserOptions: {
+    ecmaVersion: 2020,
+    sourceType: 'commonjs'
+  },
+  extends: 'eslint:recommended',
+  rules: {
+    'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }]
+  }
+};
+

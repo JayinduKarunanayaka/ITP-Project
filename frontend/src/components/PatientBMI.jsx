@@ -1,8 +1,21 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { AppContent } from '../context/AppContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
 
 const PatientBMI = ({ patientId }) => {
     const { backendUrl } = useContext(AppContent);
@@ -12,23 +25,25 @@ const PatientBMI = ({ patientId }) => {
     const [bmiHistory, setBmiHistory] = useState([]);
     const [editId, setEditId] = useState(null);
 
-    const fetchBMI = async () => {
+    const fetchBMI = useCallback(async () => {
         try {
             const url = patientId 
                 ? `${backendUrl}/api/bmi?patientId=${patientId}` 
                 : `${backendUrl}/api/bmi`;
-            const { data } = await axios.get(url, { withCredentials: true });
+            const { data } = await axios.get(url, { headers: getAuthHeaders() });
             if (data.success && data.bmis) {
                 setBmiHistory(data.bmis);
             }
         } catch (error) {
             console.error(error.message);
         }
-    };
+    }, [backendUrl, patientId]);
 
     useEffect(() => {
-        fetchBMI();
-    }, []);
+        (async () => {
+            await fetchBMI();
+        })();
+    }, [fetchBMI]);
 
     const onSubmitHandler = async (e) => {
         e.preventDefault();
@@ -47,11 +62,12 @@ const PatientBMI = ({ patientId }) => {
             if (patientId) payload.patientId = patientId;
 
             let data;
+            const requestConfig = { headers: getAuthHeaders() };
             if (editId) {
-                const response = await axios.put(`${backendUrl}/api/bmi/${editId}`, payload, { withCredentials: true });
+                const response = await axios.put(`${backendUrl}/api/bmi/${editId}`, payload, requestConfig);
                 data = response.data;
             } else {
-                const response = await axios.post(backendUrl + '/api/bmi', payload, { withCredentials: true });
+                const response = await axios.post(backendUrl + '/api/bmi', payload, requestConfig);
                 data = response.data;
             }
 
@@ -60,8 +76,8 @@ const PatientBMI = ({ patientId }) => {
                 setHeight('');
                 setWeight('');
                 setEditId(null);
-                fetchBMI(); // Refresh data
-                window.dispatchEvent(new Event('bmiUpdated')); // Notify other components
+                fetchBMI();
+                window.dispatchEvent(new Event('bmiUpdated'));
             } else {
                 toast.error(data.message);
             }
@@ -81,7 +97,7 @@ const PatientBMI = ({ patientId }) => {
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to delete this BMI record?")) return;
         try {
-            const { data } = await axios.delete(`${backendUrl}/api/bmi/${id}`, { withCredentials: true });
+            const { data } = await axios.delete(`${backendUrl}/api/bmi/${id}`, { headers: getAuthHeaders() });
             if (data.success) {
                 toast.success(data.message || "BMI deleted");
                 if (editId === id) {
@@ -90,7 +106,7 @@ const PatientBMI = ({ patientId }) => {
                     setWeight('');
                 }
                 fetchBMI();
-                window.dispatchEvent(new Event('bmiUpdated')); // Notify other components
+                window.dispatchEvent(new Event('bmiUpdated'));
             } else {
                 toast.error(data.message);
             }

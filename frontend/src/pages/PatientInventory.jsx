@@ -1,14 +1,29 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AppContent } from '../context/AppContext';
 import PatientSidebar from '../components/PatientSidebar';
 
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
+
 const PatientInventory = () => {
-    // patientId comes from the URL defined in App.jsx
-    const { patientId } = useParams(); 
+    // patientId comes from the URL defined in Scheduler.jsx
+    const { patientId } = useParams();
+    const navigate = useNavigate();
     const { backendUrl } = useContext(AppContent);
     const [patient, setPatient] = useState(null);
+    const [medications, setMedications] = useState([]);
 
     useEffect(() => {
         const fetchPatientData = async () => {
@@ -16,8 +31,8 @@ const PatientInventory = () => {
                 // UPDATED: Using axios.get to match your backend's req.params
                 // URL: /api/user/get-patient/ID_HERE
                 const { data } = await axios.get(
-                    `${backendUrl}/api/user/get-patient/${patientId}`, 
-                    { withCredentials: true }
+                    `${backendUrl}/api/user/get-patient/${patientId}`,
+                    { headers: getAuthHeaders() }
                 );
 
                 if (data.success) {
@@ -35,17 +50,126 @@ const PatientInventory = () => {
         }
     }, [patientId, backendUrl]);
 
+    useEffect(() => {
+        const fetchMedications = async () => {
+            try {
+                const url = patientId
+                    ? `${backendUrl}/api/medications?patientId=${patientId}`
+                    : `${backendUrl}/api/medications`;
+                const { data } = await axios.get(url, { headers: getAuthHeaders() });
+                if (data.success && data.meds) {
+                    setMedications(data.meds);
+                }
+            } catch (error) {
+                console.error("Failed to fetch medications:", error.message);
+            }
+        };
+        fetchMedications();
+    }, [patientId, backendUrl]);
+
+    // Calculate Near Expiring count
+    const nearExpiringCount = medications.filter(med => {
+        if (!med.expiryDate) return false;
+        const expiry = new Date(med.expiryDate);
+        const today = new Date();
+        const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
+        return expiry > today && expiry <= nextMonth;
+    }).length;
+
+    const lowStockCount = medications.filter(med => med.stockCount > 0 && med.stockCount < 5).length;
+    const refillCount = medications.filter(med => med.stockCount === 0).length;
+
     return (
         <div className='flex min-h-screen bg-white'>
             {/* Sidebar receives the name for the profile circle at the bottom */}
             <PatientSidebar patientName={patient?.name} />
-            
-            <main className='flex-1 p-12'>
-                <div className='max-w-5xl'>
+
+            <main className='flex-1 p-8 md:p-12 bg-slate-50'>
+                <div className='max-w-6xl mx-auto'>
                     <h1 className='text-2xl font-bold text-emerald-900'>
                         Inventory — <span className='text-emerald-500'>{patient?.name || 'Loading...'}</span>
                     </h1>
-                    <p className='text-gray-400 text-sm mt-1'>Manage medication stock levels for this patient.</p>
+                    <p className='text-gray-400 text-sm mt-1 mb-8'>Manage medication stock levels for this patient.</p>
+
+                    {/* Alert Summary Section */}
+                    <div className="mb-10">
+                        <h2 className="text-lg font-semibold text-slate-800 mb-4">Alert Summary</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {/* Card 1 */}
+                            <div className="bg-white border border-slate-100 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] hover:shadow-md transition-shadow">
+                                <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-orange-500 mb-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-slate-700 font-semibold text-sm">Near Expiring Medicines</h3>
+                                <p className="text-4xl font-bold text-orange-500 my-2">{nearExpiringCount}</p>
+                                <p className="text-slate-400 text-xs">Items expiring soon</p>
+                            </div>
+
+                            {/* Card 2 */}
+                            <div className="bg-white border border-slate-100 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] hover:shadow-md transition-shadow">
+                                <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mb-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-slate-700 font-semibold text-sm">Low Stock Medicines</h3>
+                                <p className="text-4xl font-bold text-red-500 my-2">{lowStockCount}</p>
+                                <p className="text-slate-400 text-xs">Items running low ( &lt; 5 )</p>
+                            </div>
+
+                            {/* Card 3 */}
+                            <div className="bg-white border border-slate-100 rounded-xl p-6 flex flex-col items-center justify-center text-center shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] hover:shadow-md transition-shadow">
+                                <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 mb-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-slate-700 font-semibold text-sm">Need to Refill</h3>
+                                <p className="text-4xl font-bold text-blue-500 my-2">{refillCount}</p>
+                                <p className="text-slate-400 text-xs">Out of stock items</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Quick Access Section */}
+                    <div>
+                        <h2 className="text-lg font-semibold text-slate-800 mb-4">Quick Access</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Card 1 */}
+                            <div
+                                onClick={() => navigate(`/patient/${patientId}/inventory/medications`)}
+                                className="bg-white border border-slate-100 rounded-xl p-6 flex items-start shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] hover:shadow-md transition-shadow cursor-pointer"
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-emerald-100 flex flex-shrink-0 items-center justify-center text-emerald-600 mr-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="text-slate-800 font-semibold text-base">Medication Details</h3>
+                                    <p className="text-slate-500 text-sm mt-1 leading-relaxed">View and manage all medication inventory, stock levels, and expiration dates</p>
+                                </div>
+                            </div>
+
+                            {/* Card 2 */}
+                            <div
+                                onClick={() => navigate(`/patient/${patientId}/inventory/prescriptions`)}
+                                className="bg-white border border-slate-100 rounded-xl p-6 flex items-start shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] hover:shadow-md transition-shadow cursor-pointer"
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-emerald-100 flex flex-shrink-0 items-center justify-center text-emerald-600 mr-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="text-slate-800 font-semibold text-base">Prescription Manager</h3>
+                                    <p className="text-slate-500 text-sm mt-1 leading-relaxed">Track prescriptions, refill requests, and patient medication orders</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>

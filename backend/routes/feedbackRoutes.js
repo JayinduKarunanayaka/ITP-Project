@@ -1,7 +1,9 @@
 import express from 'express';
+import userAuth from '../middleware/userAuth.js';
 import {
     createFeedback,
     getAllFeedback,
+    getPublicFeedback,
     getFeedbackById,
     updateFeedback,
     deleteFeedback
@@ -9,10 +11,11 @@ import {
 
 const router = express.Router();
 
-router.post('/', createFeedback); //create
-router.get('/', getAllFeedback);
-router.get('/:id', getFeedbackById);
-router.put('/:id', updateFeedback); //update
-router.delete('/:id', deleteFeedback);
+router.get('/public', getPublicFeedback);
+router.post('/', userAuth, createFeedback); //create
+router.get('/', userAuth, getAllFeedback);
+router.get('/:id', userAuth, getFeedbackById);
+router.put('/:id', userAuth, updateFeedback); //update
+router.delete('/:id', userAuth, deleteFeedback);
 
 export default router;

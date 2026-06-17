@@ -1,7 +1,20 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { AppContent } from '../context/AppContext';
+
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
 
 const PatientAllergies = ({ patientId }) => {
     const { backendUrl } = useContext(AppContent);
@@ -14,23 +27,25 @@ const PatientAllergies = ({ patientId }) => {
     const [allergies, setAllergies] = useState([]);
     const [editId, setEditId] = useState(null);
 
-    const fetchAllergies = async () => {
+    const fetchAllergies = useCallback(async () => {
         try {
             const url = patientId 
-                ? `${backendUrl}/api/allergies?patientId=${patientId}` 
+                ? `${backendUrl}/api/allergies?patientId=${patientId}&userId=${patientId}` 
                 : `${backendUrl}/api/allergies`;
-            const { data } = await axios.get(url, { withCredentials: true });
+            const { data } = await axios.get(url, { headers: getAuthHeaders() });
             if (data.success && data.allergies) {
                 setAllergies(data.allergies);
             }
         } catch (error) {
             console.error(error.message);
         }
-    };
+    }, [backendUrl, patientId]);
 
     useEffect(() => {
-        fetchAllergies();
-    }, []);
+        (async () => {
+            await fetchAllergies();
+        })();
+    }, [fetchAllergies]);
 
     const onSubmitHandler = async (e) => {
         e.preventDefault();
@@ -44,21 +59,32 @@ const PatientAllergies = ({ patientId }) => {
                 payload.severity = severity;
                 payload.reaction = reaction;
             }
-            if (patientId) payload.patientId = patientId;
+            if (patientId) {
+                payload.patientId = patientId;
+                payload.userId = patientId;
+            }
 
             let data;
+            const config = { headers: getAuthHeaders() };
             if (editId) {
-                const response = await axios.put(`${backendUrl}/api/allergies/${editId}`, payload, { withCredentials: true });
+                const response = await axios.put(`${backendUrl}/api/allergies/${editId}`, payload, config);
                 data = response.data;
             } else {
-                const response = await axios.post(`${backendUrl}/api/allergies`, payload, { withCredentials: true });
+                const response = await axios.post(`${backendUrl}/api/allergies`, payload, config);
                 data = response.data;
             }
 
             if (data.success) {
                 toast.success(data.message || (editId ? 'Allergy record updated' : 'Allergy record added'));
+                if (data.allergy) {
+                    setAllergies((current) => {
+                        if (editId) {
+                            return current.map((item) => (item._id === data.allergy._id ? data.allergy : item));
+                        }
+                        return [data.allergy, ...current];
+                    });
+                }
                 resetForm();
-                fetchAllergies();
             } else {
                 toast.error(data.message);
             }
@@ -100,7 +126,8 @@ const PatientAllergies = ({ patientId }) => {
             const { data } = await axios.delete(`${backendUrl}/api/allergies/${id}`, { withCredentials: true });
             if (data.success) {
                 toast.success(data.message || "Allergy record deleted");
-                fetchAllergies();
+                setAllergies((current) => current.filter((item) => item._id !== id));
+                await fetchAllergies();
                 if (editId === id) resetForm();
             } else {
                 toast.error(data.message);

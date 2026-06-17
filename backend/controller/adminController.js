@@ -1,5 +1,8 @@
 import userModel from "../model/userModel.js";
 import auditModel from "../model/auditModel.js"; 
+import TrackingLog from "../models/TrackingLog.js";
+import DeviceLink from "../model/DeviceLink.js";
+import Feedback from "../model/Feedback.js";
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
@@ -112,8 +115,11 @@ export const listAdmins = async (req, res) => {
 // Patient Management (STRICT ROLE CHECK) 
 export const getAllPatients = async (req, res) => {
     try {
-        const patients = await userModel.find({ role: 'Patient' }).select('-password');
-        res.json({ success: true, patients });
+        const users = await userModel.find({ 
+            role: { $in: ['Patient', 'Caretaker'] } 
+        }).select('-password');
+        
+        res.json({ success: true, users });
     } catch (error) {
         res.json({ success: false, message: error.message });
     }
@@ -152,6 +158,101 @@ export const deleteUser = async (req, res) => {
         });
 
         res.json({ success: true, message: "Patient account removed successfully" });
+    } catch (error) {
+        res.json({ success: false, message: error.message });
+    }
+};
+
+// Get Global Tracking Stats
+export const getTrackingStats = async (req, res) => {
+    try {
+        const stats = await TrackingLog.aggregate([
+            {
+                $group: {
+                    _id: "$status",
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const formattedStats = {
+            Pending: 0,
+            Taken: 0,
+            Late: 0,
+            Missed: 0,
+            Skipped: 0,
+            Alerted: 0
+        };
+
+        stats.forEach(stat => {
+            if (formattedStats[stat._id] !== undefined) {
+                formattedStats[stat._id] = stat.count;
+            }
+        });
+
+        res.json({ success: true, stats: formattedStats });
+    } catch (error) {
+        res.json({ success: false, message: error.message });
+    }
+};
+
+// Get Device Links Stats
+export const getDeviceStats = async (req, res) => {
+    try {
+        const stats = await DeviceLink.aggregate([
+            {
+                $group: {
+                    _id: "$status",
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const formattedStats = {
+            claimed: 0,
+            pending: 0,
+            expired: 0
+        };
+
+        stats.forEach(stat => {
+            if (formattedStats[stat._id] !== undefined) {
+                formattedStats[stat._id] = stat.count;
+            }
+        });
+
+        res.json({ success: true, stats: formattedStats });
+    } catch (error) {
+        res.json({ success: false, message: error.message });
+    }
+};
+
+// Get Feedback Stats
+export const getFeedbackStats = async (req, res) => {
+    try {
+        const stats = await Feedback.aggregate([
+            {
+                $group: {
+                    _id: "$type",
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const formattedStats = {
+            'Bug Report': 0,
+            'Feature Request': 0,
+            'Improvement': 0,
+            'Complaint': 0,
+            'Praise': 0
+        };
+
+        stats.forEach(stat => {
+            if (formattedStats[stat._id] !== undefined) {
+                formattedStats[stat._id] = stat.count;
+            }
+        });
+
+        res.json({ success: true, stats: formattedStats });
     } catch (error) {
         res.json({ success: false, message: error.message });
     }

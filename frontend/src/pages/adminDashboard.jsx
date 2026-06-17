@@ -12,27 +12,30 @@ const AdminDashboard = () => {
     const navigate = useNavigate()
     const { setIsLoggedin, setUserData, backendUrl } = useContext(AppContent)
     const [activeTab, setActiveTab] = useState('User oversight')
-    
-    const [patients, setPatients] = useState([])
+    const [users, setUsers] = useState([])
     const [loading, setLoading] = useState(true)
 
-    const fetchPatients = async () => {
+    const fetchUsers = async () => {
         try {
             setLoading(true)
             axios.defaults.withCredentials = true
-            const { data } = await axios.get(backendUrl + '/api/admin/all-patients')
+            const token = localStorage.getItem('med_app_auth_token') || '';
+            const { data } = await axios.get(backendUrl + '/api/admin/all-users', {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            
             if (data.success) {
-                setPatients(data.patients)
+                setUsers(data.users || [])
             }
         } catch (error) {
-            toast.error("Error fetching patient data")
+            toast.error("Error fetching user data")
         } finally {
             setLoading(false)
         }
     }
 
     useEffect(() => {
-        fetchPatients()
+        fetchUsers()
     }, [])
 
     const logout = async () => {
@@ -118,8 +121,8 @@ const AdminDashboard = () => {
                     {activeTab === 'User oversight' && (
                         <div className='animate-in fade-in duration-500'>
                             <UserOversight 
-                                patients={patients} 
-                                fetchPatients={fetchPatients} 
+                                users={users} 
+                                fetchUsers={fetchUsers} 
                                 loading={loading} 
                             />
                         </div>
@@ -127,7 +130,8 @@ const AdminDashboard = () => {
 
                     {activeTab === 'Analytic data & monitoring' && (
                         <div className='animate-in slide-in-from-bottom-4 duration-500'>
-                            <Analytics patients={patients} fetchPatients={fetchPatients} />
+                            {/* Updated to pass 'users' prop to Analytics */}
+                            <Analytics users={users} fetchUsers={fetchUsers} />
                         </div>
                     )}
 

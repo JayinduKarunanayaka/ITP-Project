@@ -4,7 +4,30 @@ import { AppContent } from '../../context/AppContext';  //for backend URL & user
 import { notesAPI } from '../../services/api'; // for health notes operations
 import NoteModal from './NoteModal';  //for adding/editing notes
 import Trends from './Trends';
+import CalendarView from './CalendarView';
 import LoggedIn from '../loggedin';  //import authentication wrapper component
+import PatientSidebar from '../PatientSidebar';
+import axios from 'axios';
+
+const getSeverityBadgeClass = (severity) => {
+    if (severity === 'Critical') return 'bg-red-50 text-red-600 border-red-200';
+    if (severity === 'Severe') return 'bg-orange-50 text-orange-600 border-orange-200';
+    if (severity === 'Moderate') return 'bg-amber-50 text-amber-600 border-amber-200';
+    return 'bg-green-50 text-green-600 border-green-200';
+};
+
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
 
 //main component
 const HealthNotes = () => {
@@ -19,7 +42,9 @@ const HealthNotes = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingNote, setEditingNote] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [patient, setPatient] = useState(null);
 
+    const isCaretakerPatientView = Boolean(patientId);
     const userId = patientId || userData?._id || 'user123';
 
     const categories = ['All Categories', 'Symptom', 'Appointment', 'Medication', 'Vital Signs', 'General'];
@@ -32,6 +57,22 @@ const HealthNotes = () => {
     useEffect(() => {
         filterNotes();
     }, [notes, searchTerm, categoryFilter]);
+
+    useEffect(() => {
+        const fetchPatientData = async () => {
+            if (!patientId) return;
+            try {
+                const { data } = await axios.get(
+                    `${backendUrl}/api/user/get-patient/${patientId}`,
+                    { headers: getAuthHeaders() }
+                );
+                if (data.success) setPatient(data.patient);
+            } catch (error) {
+                console.error('Error fetching patient profile for notes:', error);
+            }
+        };
+        fetchPatientData();
+    }, [patientId, backendUrl]);
 
     //fetch all notes for current user from backend
     const fetchNotes = async () => {
@@ -108,8 +149,59 @@ const HealthNotes = () => {
         setIsModalOpen(true);
     };
 
+    const renderViewSwitcher = () => (
+        <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-100 p-1 shadow-sm">
+                <button
+                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${viewMode === 'list' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-emerald-700'}`}
+                    onClick={() => setViewMode('list')}
+                >
+                    List
+                </button>
+                <button
+                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${viewMode === 'trends' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-emerald-700'}`}
+                    onClick={() => setViewMode('trends')}
+                >
+                    <svg className="mr-2 inline h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                    Trends
+                </button>
+                <button
+                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${viewMode === 'calendar' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-emerald-700'}`}
+                    onClick={() => setViewMode('calendar')}
+                >
+                    <svg className="mr-2 inline h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    Calendar
+                </button>
+            </div>
+
+            <button
+                onClick={openAddModal}
+                className="whitespace-nowrap rounded-2xl bg-[#0c7a43] px-6 py-3 font-bold text-white shadow-md transition-all hover:bg-emerald-800"
+            >
+                + Add Note
+            </button>
+        </div>
+    );
+
     // Trends view
     if (viewMode === 'trends') {
+        if (isCaretakerPatientView) {
+            return (
+                <div className='flex min-h-screen bg-white'>
+                    <PatientSidebar patientName={patient?.name} />
+                    <main className='flex-1 p-12 bg-emerald-50/20 overflow-y-auto'>
+                        <div className='max-w-6xl mx-auto w-full'>
+                            <div className="mb-6">
+                                <h2 className="text-3xl font-black text-gray-900">Health Notes & Trends</h2>
+                                <p className="text-emerald-600 font-medium mt-2">Analyze this patient's health patterns and logged statistics.</p>
+                            </div>
+                            {renderViewSwitcher()}
+                            <Trends userId={userId} onBackToList={() => setViewMode('list')} />
+                        </div>
+                    </main>
+                </div>
+            );
+        }
         return (
             <LoggedIn>
                 <div className="w-full">
@@ -117,16 +209,53 @@ const HealthNotes = () => {
                         <h2 className="text-3xl font-black text-gray-900">Health Notes & Trends</h2>
                         <p className="text-emerald-600 font-medium mt-2">Analyze your health patterns and logged statistics.</p>
                     </div>
+                    {renderViewSwitcher()}
                     <Trends userId={userId} onBackToList={() => setViewMode('list')} />
                 </div>
             </LoggedIn>
         );
     }
 
+    if (viewMode === 'calendar') {
+        if (isCaretakerPatientView) {
+            return (
+                <div className='flex min-h-screen bg-white'>
+                    <PatientSidebar patientName={patient?.name} />
+                    <main className='flex-1 p-12 bg-slate-50 overflow-y-auto'>
+                        <div className='max-w-6xl mx-auto w-full'>
+                            <div className="mb-6">
+                                <h2 className="text-3xl font-black text-gray-900">Health Notes Calendar</h2>
+                                <p className="text-emerald-600 font-medium mt-2">Browse this patient's notes by month and day.</p>
+                            </div>
+                            {renderViewSwitcher()}
+                            <div className="mt-6">
+                                <CalendarView notes={notes} onBackToList={() => setViewMode('list')} />
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        return (
+            <LoggedIn>
+                <div className="w-full">
+                    <div className="mb-6">
+                        <h2 className="text-3xl font-black text-gray-900">Health Notes Calendar</h2>
+                        <p className="text-emerald-600 font-medium mt-2">Browse your notes by month and day.</p>
+                    </div>
+                    {renderViewSwitcher()}
+                    <div className="mt-6">
+                        <CalendarView notes={notes} onBackToList={() => setViewMode('list')} />
+                    </div>
+                </div>
+            </LoggedIn>
+        );
+    }
+
     //main UI render
-    return (
-        <LoggedIn>
-            <div className="w-full">
+    const notesContent = (
+        <div className="w-full">
                 {/* Standard Page Header */}
                 <div className="mb-8">
                     <h2 className="text-3xl font-black text-gray-900">Health Notes</h2>
@@ -149,7 +278,7 @@ const HealthNotes = () => {
                         </div>
                     </div>
                     {/* filter & actions */}
-                    <div className="flex gap-4">
+                    <div className="flex flex-wrap gap-4">
                         {/* category dropdown */}
                         <select
                             value={categoryFilter}
@@ -161,27 +290,7 @@ const HealthNotes = () => {
                                 <option key={cat} value={cat}>{cat}</option>
                             ))}
                         </select>
-
-                        {/* view mode toggle: list/trends */}
-                        <div className="flex bg-gray-100 p-1 rounded-xl shadow-inner">
-                            <button className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 ${viewMode === 'list' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500 hover:text-emerald-700'}`}
-                                    onClick={() => setViewMode('list')}>
-                                List
-                            </button>
-                            <button className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 ${viewMode === 'trends' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500 hover:text-emerald-700'}`}
-                                    onClick={() => setViewMode('trends')}>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                                Trends
-                            </button>
-                        </div>
-
-                        {/* add note button */}
-                        <button
-                            onClick={openAddModal}
-                            className="px-6 py-3 bg-[#0c7a43] hover:bg-emerald-800 text-white rounded-xl flex items-center gap-2 font-bold shadow-md transition-all whitespace-nowrap"
-                        >
-                            + Add Note
-                        </button>
+                        {renderViewSwitcher()}
                     </div>
                 </div>
 
@@ -222,18 +331,15 @@ const HealthNotes = () => {
                                                 <span className={`px-3 py-1 text-[10px] font-bold uppercase rounded-full border ${note.category === 'Vital Signs' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
                                                     {note.category === 'Vital Signs' ? 'vital' : note.category.toLowerCase()}
                                                 </span>
-                                                <span className={`px-3 py-1 text-[10px] font-bold uppercase rounded-full border ${
-                                                    note.severity === 'Critical' ? 'bg-red-50 text-red-600 border-red-200' :
-                                                    note.severity === 'Severe' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                                                    note.severity === 'Moderate' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-green-50 text-green-600 border-green-200'
-                                                }`}>
-                                                    {note.severity}
-                                                </span>
+                                                {note.category !== 'Medication' && note.severity && (
+                                                    <span className={`px-3 py-1 text-[10px] font-bold uppercase rounded-full border ${getSeverityBadgeClass(note.severity)}`}>
+                                                        {note.severity}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
-                                        {/* note details - mood, physical condition */}
+                                        {/* note details - physical condition */}
                                         <div className="flex gap-4 text-xs font-bold mb-3">
-                                            <span className="text-emerald-800">Mood: <span className="font-semibold text-gray-700 bg-gray-50 px-2 py-0.5 rounded-md">{note.mood === "Great" ? "🤩" : note.mood === "Poor" ? "🤒" : note.mood === "Terrible" ? "😭" : "😐"} {note.mood}</span></span>
                                             <span className="text-emerald-800">Physical: <span className="font-semibold text-gray-700 bg-gray-50 px-2 py-0.5 rounded-md">{note.physicalCondition}</span></span>
                                         </div>
                                         {/* note content */}
@@ -291,6 +397,24 @@ const HealthNotes = () => {
                     )}
                 </div>
             </div>
+    );
+
+    if (isCaretakerPatientView) {
+        return (
+            <div className='flex min-h-screen bg-white'>
+                <PatientSidebar patientName={patient?.name} />
+                <main className='flex-1 p-12 bg-emerald-50/20 overflow-y-auto'>
+                    <div className='max-w-6xl mx-auto w-full'>
+                        {notesContent}
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    return (
+        <LoggedIn>
+            {notesContent}
         </LoggedIn>
     );
 };

@@ -7,15 +7,15 @@ const Home = ({ children }) => {
     const { userData } = useContext(AppContent) 
     const navigate = useNavigate() 
 
-    // Menu items for the patient sidebar
     const menuItems = [
         { name: 'Medication', path: '/medication', icon: assets.menu_icon },
         { name: 'Time Allowcation', path: '/time', icon: assets.menu_icon },
         { name: 'Health Notes', path: '/notes', icon: assets.menu_icon },
         { name: 'Tracking', path: '/tracking', icon: assets.menu_icon },
         { name: 'Inventory', path: '/inventory', icon: assets.menu_icon },
-        
+        { name: 'Feedback', path: '/feedback', icon: assets.Feedback_img },
     ];
+
 
     const handleProfileClick = () => {
         const role = userData?.role?.toLowerCase();
@@ -29,29 +29,28 @@ const Home = ({ children }) => {
     return (
         <div className='flex min-h-screen bg-emerald-50'>
             
-            {/* --- SIMPLE SIDEBAR --- */}
             <div className='w-64 bg-white border-r border-emerald-100 flex flex-col p-6 shadow-sm sticky top-0 h-screen'>
                 <div className='mb-10'>
                     <h2 className='text-emerald-800 font-black text-xl'>Care - Panel</h2>
                 </div>
 
-                {/* Main Navigation */}
                 <nav className='flex-1 space-y-2 overflow-y-auto pr-2 no-scrollbar'>
-                    {menuItems.map((item) => (
-                        <NavLink 
-                            to={item.path} 
-                            key={item.name}
-                            className={({isActive}) => `flex items-center gap-3 p-3 rounded-xl font-medium transition-all ${isActive ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-500 hover:bg-emerald-50'}`}
-                        >
-                            {item.name}
-                        </NavLink>
-                    ))}
+                    {menuItems.map((item) => {
+                        const isMyPart = item.name === 'Health Notes' || item.name === 'Feedback';
+                        return (
+                            <NavLink 
+                                to={item.path} 
+                                key={item.name}
+                                className={({isActive}) => `flex items-center gap-3 p-3 rounded-xl font-medium transition-all ${isActive ? 'bg-emerald-600 text-white shadow-md' : (isMyPart ? 'text-gray-500 hover:bg-emerald-600 hover:text-white' : 'text-gray-500 hover:bg-emerald-50')}`}
+                            >
+                                {item.name}
+                            </NavLink>
+                        );
+                    })}
                 </nav>
 
-                {/* --- BOTTOM PROFILE SECTION --- */}
                 <div className='mt-auto pt-6 border-t border-emerald-50 flex flex-col gap-4'>
                     
-                    {/* Only show "Patients" button if user is a Caretaker viewing this portal */}
                     {userData?.role?.toLowerCase() === 'caretaker' && (
                         <button 
                             onClick={() => navigate('/caretaker-dashboard')}
@@ -61,7 +60,6 @@ const Home = ({ children }) => {
                         </button>
                     )}
 
-                    {/* Profile Link */}
                     <div 
                         onClick={handleProfileClick}
                         className='flex items-center gap-3 p-2 rounded-xl hover:bg-emerald-50 transition-all cursor-pointer group'
@@ -79,7 +77,6 @@ const Home = ({ children }) => {
                 </div>
             </div>
 
-            {/* --- MAIN CONTENT AREA --- */}
             <main className='flex-1 flex flex-col p-8 overflow-y-auto bg-emerald-50 w-full'>
                 <div className='flex flex-col items-center justify-center text-center w-full mb-8'>
                     <div className='bg-white p-12 rounded-[3rem] shadow-xl border border-emerald-100 max-w-lg w-full'>

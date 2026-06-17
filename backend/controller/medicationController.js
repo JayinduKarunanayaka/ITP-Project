@@ -6,6 +6,7 @@ const getTargetUserId = (req) =>
     req.params?.patientId ||
     req.body?.patientId ||
     req.query?.userId ||
+    req.userId ||
     req.body?.userId;
 
 // Add medication
@@ -16,8 +17,26 @@ export const addMedication = async (req, res) => {
             return res.json({ success: false, message: "Patient ID is required" });
         }
 
+        const times = [];
+        if (req.body.morningTime && req.body.morningTime.trim() !== '') times.push(req.body.morningTime.trim());
+        if (req.body.afternoonTime && req.body.afternoonTime.trim() !== '') times.push(req.body.afternoonTime.trim());
+        if (req.body.nightTime && req.body.nightTime.trim() !== '') times.push(req.body.nightTime.trim());
+        
+        const fallbackTime = (req.body?.scheduledTime || req.body?.time || '').toString().trim();
+        if (times.length === 0 && fallbackTime) times.push(fallbackTime);
+
+        let finalTime = fallbackTime;
+        if (times.length > 0) {
+            finalTime = fallbackTime || times[0];
+        }
+
+        const customAudioPath = req.file ? req.file.path.replace(/\\/g, '/') : undefined;
+
         const med = new Medication({
             ...req.body,
+            time: finalTime,
+            scheduledTime: finalTime,
+            customAudio: customAudioPath || req.body?.customAudio,
             userId: targetUserId,
             patientId: req.body?.patientId || targetUserId,
             medicationName: req.body?.medicationName || req.body?.name,
@@ -26,29 +45,32 @@ export const addMedication = async (req, res) => {
         });
         await med.save();
 
-        const reminderTime = (req.body?.scheduledTime || req.body?.time || "").toString().trim();
-        if (reminderTime) {
-            const reminderWindow = buildReminderWindow(reminderTime, {
-                confirmWindowMinutes: req.body?.confirmWindowMinutes,
-                reminderIntervalMinutes: req.body?.reminderIntervalMinutes,
-                maxReminderAttempts: req.body?.maxReminderAttempts,
-                startDate: req.body?.scheduleStartDate,
-                endDate: req.body?.scheduleEndDate,
-            });
-
-            await createTrackingSchedule({
-                userId: targetUserId,
-                medicationId: med._id,
-                medicationName: req.body?.name || req.body?.medicationName || "Medication",
-                scheduledTime: reminderWindow?.scheduledTime || reminderTime,
-                overrides: {
+        if (times.length > 0) {
+            for (const t of times) {
+                const reminderWindow = buildReminderWindow(t, {
                     confirmWindowMinutes: req.body?.confirmWindowMinutes,
                     reminderIntervalMinutes: req.body?.reminderIntervalMinutes,
                     maxReminderAttempts: req.body?.maxReminderAttempts,
                     startDate: req.body?.scheduleStartDate,
                     endDate: req.body?.scheduleEndDate,
-                },
-            });
+                });
+
+                await createTrackingSchedule({
+                    userId: targetUserId,
+                    medicationId: med._id,
+                    medicationName: req.body?.name || req.body?.medicationName || "Medication",
+                    scheduledTime: reminderWindow?.scheduledTime || t,
+                    customMessage: req.body?.customMessage,
+                    customAudio: req.body?.customAudio, // note: addMedication doesn't handle upload yet!
+                    overrides: {
+                        confirmWindowMinutes: req.body?.confirmWindowMinutes,
+                        reminderIntervalMinutes: req.body?.reminderIntervalMinutes,
+                        maxReminderAttempts: req.body?.maxReminderAttempts,
+                        startDate: req.body?.scheduleStartDate,
+                        endDate: req.body?.scheduleEndDate,
+                    },
+                });
+            }
         }
 
         res.json({ success: true, message: "Medication added", med });
@@ -89,32 +111,54 @@ export const updateMedication = async (req, res) => {
         delete updateData.userId;
         delete updateData.patientId;
 
+        const customAudioPath = req.file ? req.file.path.replace(/\\/g, '/') : undefined;
+        if (customAudioPath) {
+            updateData.customAudio = customAudioPath;
+        }
+
+        const times = [];
+        if (updateData.morningTime && updateData.morningTime.trim() !== '') times.push(updateData.morningTime.trim());
+        if (updateData.afternoonTime && updateData.afternoonTime.trim() !== '') times.push(updateData.afternoonTime.trim());
+        if (updateData.nightTime && updateData.nightTime.trim() !== '') times.push(updateData.nightTime.trim());
+        
+        const fallbackTime = (updateData.scheduledTime || updateData.time || '').toString().trim();
+        if (times.length === 0 && fallbackTime) times.push(fallbackTime);
+
+        if (times.length > 0) {
+            updateData.time = fallbackTime || times[0];
+            updateData.scheduledTime = times[0];
+        }
+
         const med = await Medication.findByIdAndUpdate(req.params.id, updateData, { new: true });
 
         const ownerId = med?.patientId || med?.userId;
-        const reminderTime = (updateData?.scheduledTime || updateData?.time || med?.time || "").toString().trim();
-        if (ownerId && reminderTime && (updateData?.time || updateData?.scheduledTime || updateData?.scheduleStartDate || updateData?.scheduleEndDate)) {
-            const reminderWindow = buildReminderWindow(reminderTime, {
-                confirmWindowMinutes: updateData?.confirmWindowMinutes,
-                reminderIntervalMinutes: updateData?.reminderIntervalMinutes,
-                maxReminderAttempts: updateData?.maxReminderAttempts,
-                startDate: updateData?.scheduleStartDate || med?.scheduleStartDate,
-                endDate: updateData?.scheduleEndDate || med?.scheduleEndDate,
-            });
-
-            await createTrackingSchedule({
-                userId: ownerId,
-                medicationId: med._id,
-                medicationName: med.medicationName || med.name || "Medication",
-                scheduledTime: reminderWindow?.scheduledTime || reminderTime,
-                overrides: {
+        
+        if (ownerId && times.length > 0) {
+            for (const t of times) {
+                const reminderWindow = buildReminderWindow(t, {
                     confirmWindowMinutes: updateData?.confirmWindowMinutes,
                     reminderIntervalMinutes: updateData?.reminderIntervalMinutes,
                     maxReminderAttempts: updateData?.maxReminderAttempts,
                     startDate: updateData?.scheduleStartDate || med?.scheduleStartDate,
                     endDate: updateData?.scheduleEndDate || med?.scheduleEndDate,
-                },
-            });
+                });
+
+                await createTrackingSchedule({
+                    userId: ownerId,
+                    medicationId: med._id,
+                    medicationName: med.medicationName || med.name || "Medication",
+                    scheduledTime: reminderWindow?.scheduledTime || t,
+                    customMessage: updateData.customMessage,
+                    customAudio: updateData.customAudio || med.customAudio,
+                    overrides: {
+                        confirmWindowMinutes: updateData?.confirmWindowMinutes,
+                        reminderIntervalMinutes: updateData?.reminderIntervalMinutes,
+                        maxReminderAttempts: updateData?.maxReminderAttempts,
+                        startDate: updateData?.scheduleStartDate || med?.scheduleStartDate,
+                        endDate: updateData?.scheduleEndDate || med?.scheduleEndDate,
+                    },
+                });
+            }
         }
 
         res.json({ success: true, message: "Medication updated", med });

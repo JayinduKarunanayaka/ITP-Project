@@ -4,6 +4,46 @@ import userModel from '../model/userModel.js';
 import transporter from '../config/nodemailer.js';
 import { EMAIL_VERIFY_TEMPLATE, PASSWORD_RESET } from '../config/emaiTemplate.js';
 
+const buildAuthPayload = async (user) => {
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    return {
+        token,
+        user: {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            isAccountVerified: user.isAccountVerified,
+        },
+    };
+};
+
+const readSessionToken = (req) => {
+    const cookieToken = req.cookies?.token;
+    if (cookieToken) {
+        return cookieToken;
+    }
+
+    const authHeader = req.headers?.authorization || '';
+    if (authHeader.startsWith('Bearer ')) {
+        return authHeader.slice(7).trim();
+    }
+
+    return req.body?.token || req.query?.token || '';
+};
+
+const verifySessionToken = async (token) => {
+    if (!token) return null;
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded?.id) return null;
+
+    const user = await userModel.findById(decoded.id);
+    if (!user) return null;
+
+    return { token, user };
+};
+
 //registration process
 export const register = async (req, res)=>{
     const {name,birthday,email,password,role}=req.body;
@@ -17,15 +57,15 @@ export const register = async (req, res)=>{
         const existingUser = await userModel.findOne({email})
 
         if(existingUser){
-            return res.json({success: false, message : "User already exists"})
-        };
+            return res.json({success: false, message : "User already exists"});
+        }
 
         const hashedPassword = await bcrypt.hash(password, 10);
         
         const user = new userModel({name,birthday,email,password:hashedPassword,role: role || "Patient" });
         await user.save();
 
-        const token = jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn:'7d'});
+        const { token } = await buildAuthPayload(user);
         res.cookie('token', token,{
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -33,17 +73,25 @@ export const register = async (req, res)=>{
             maxAge: 7*24*60*60*1000
         });
 
-        //sending welcome email
-        const mailOptions ={
+        const mailOptions = {
             from: process.env.SENDER_EMAIL,
             to: email,
             subject: 'Welcome to Medication App!',
-            text: `Welcome to medication App. Your account has been created with email ID : ${email}`
+            text: `Welcome to medication App. Your account has been created with email ID: ${email}`
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+        } catch (emailError) {
+            console.error("Email failed to send, but user was created:", emailError.message);
         }
 
-        await transporter.sendMail(mailOptions);
-
-        return res.json({success: true});
+        return res.json({
+            success: true,
+            role: user.role,
+            message: "Registration Successful",
+            ...await buildAuthPayload(user)
+        });
 
     } catch(error){
         res.json({success: false, message : error.message})
@@ -80,8 +128,8 @@ export const login = async(req,res)=>{
             return res.json({ success: false, message: 'Access Denied: You do not have Admin privileges' });
         }
         
-        const token = jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn:'7d'});
-        res.cookie('token', token,{
+        const authPayload = await buildAuthPayload(user);
+        res.cookie('token', authPayload.token,{
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: process.env.NODE_ENV === 'production' ? 'none': 'strict',
@@ -91,7 +139,8 @@ export const login = async(req,res)=>{
         return res.json({ 
             success: true, 
             role: user.role, 
-            message: "Login Successful" 
+            message: "Login Successful",
+            ...authPayload
         });
         
     }catch(error){
@@ -187,11 +236,48 @@ export const verifyEmail = async(req,res)=>{
 //is user uthenticated
 export const isAuthenticated = async(req,res)=>{
     try{
-        return res.json({success: true});
+        const userId = req.userId || req.body?.userId;
+        if (!userId) {
+            return res.status(401).json({success: false, message: 'Not Authorized. Login Again!'});
+        }
+
+        const user = await userModel.findById(userId);
+        if (!user) {
+            return res.status(401).json({success: false, message: 'Not Authorized. Login Again!'});
+        }
+
+        const authPayload = await buildAuthPayload(user);
+        return res.json({
+            success: true,
+            ...authPayload
+        });
     }catch(error){
-        res.json({success:false, message: error.message});
+        res.status(500).json({success:false, message: error.message});
     }
 }
+
+export const exchangeSession = async (req, res) => {
+    try {
+        const sessionToken = readSessionToken(req);
+        const verified = await verifySessionToken(sessionToken);
+
+        if (!verified?.user) {
+            return res.status(401).json({ success: false, message: 'No active session found' });
+        }
+
+        const authPayload = await buildAuthPayload(verified.user);
+        res.cookie('token', authPayload.token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        return res.json({ success: true, ...authPayload });
+    } catch (error) {
+        return res.status(401).json({ success: false, message: error.message || 'Session exchange failed' });
+    }
+};
 
 //send password reset OTP
 export const sendResteOtp = async (req,res)=>{
@@ -251,9 +337,9 @@ export const resetPassword = async(req,res)=>{
             return res.json({success:false, message: "OTP Expired!"});
         }
 
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const newHashedPassword = await bcrypt.hash(newPassword, 10);
 
-        user.password = hashedPassword;
+        user.password = newHashedPassword;
         user.resetOtp ="";
         user.resetOtpExpireAt=0;
 

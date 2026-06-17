@@ -21,7 +21,6 @@ const CaretakerProfile = () => {
         skills: ''
     })
 
-    // Auto-calculate age from birthday
     const calculateAge = (dob) => {
         if (!dob) return "N/A";
         const birthDate = new Date(dob);
@@ -33,7 +32,6 @@ const CaretakerProfile = () => {
         if (userData) {
             setFormData({
                 name: userData.name || '',
-                // Ensure date is formatted correctly for the input type="date"
                 birthday: userData.birthday ? new Date(userData.birthday).toISOString().split('T')[0] : '',
                 gender: userData.gender || '',
                 primaryLanguage: userData.primaryLanguage || '',
@@ -75,9 +73,8 @@ const CaretakerProfile = () => {
         }
     };
 
-    // 3. Add the Deactivate Function
     const handleDeactivate = async () => {
-        const password = prompt("Please enter your password to confirm deactivation:");
+        const password = prompt("Please enter your password to confirm deletion:");
         if (!password) return;
 
         try {
@@ -106,7 +103,6 @@ const CaretakerProfile = () => {
                     <button onClick={() => navigate(-1)} className='text-sm font-semibold text-gray-400 hover:text-emerald-600 transition-all'>← Back</button>
                 </div>
 
-                {/* Patient Count Banner */}
                 <div className='mb-6 p-4 bg-emerald-800 rounded-2xl text-white flex justify-between items-center'>
                     <div>
                         <p className='text-[10px] font-bold uppercase tracking-wider opacity-80'>Registered Patients</p>
@@ -118,7 +114,6 @@ const CaretakerProfile = () => {
                 </div>
 
                 <div className='space-y-4'>
-                    {/* Row 1: Name & Birthday */}
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                         <div className={`p-3 rounded-xl ${isEdit ? 'bg-white ring-2 ring-emerald-400' : 'bg-gray-50'}`}>
                             <p className='text-[10px] font-bold text-emerald-800 uppercase'>Full Name</p>
@@ -130,7 +125,6 @@ const CaretakerProfile = () => {
                         </div>
                     </div>
 
-                    {/* Row 2: Age (Auto) & Gender */}
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                         <div className='bg-emerald-50 p-3 rounded-xl border border-emerald-100'>
                             <p className='text-[10px] font-bold text-emerald-800 uppercase'>Calculated Age (Auto)</p>
@@ -147,7 +141,6 @@ const CaretakerProfile = () => {
                         </div>
                     </div>
 
-                    {/* Row 3: Language & Province */}
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                         <div className={`p-3 rounded-xl ${isEdit ? 'bg-white ring-2 ring-emerald-400' : 'bg-gray-50'}`}>
                             <p className='text-[10px] font-bold text-emerald-800 uppercase'>Primary Language</p>
@@ -159,7 +152,6 @@ const CaretakerProfile = () => {
                         </div>
                     </div>
 
-                    {/* Row 4: City & Service Area */}
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                         <div className={`p-3 rounded-xl ${isEdit ? 'bg-white ring-2 ring-emerald-400' : 'bg-gray-50'}`}>
                             <p className='text-[10px] font-bold text-emerald-800 uppercase'>City</p>
@@ -171,13 +163,11 @@ const CaretakerProfile = () => {
                         </div>
                     </div>
 
-                    {/* Full Address */}
                     <div className={`p-3 rounded-xl ${isEdit ? 'bg-white ring-2 ring-emerald-400' : 'bg-gray-50'}`}>
                         <p className='text-[10px] font-bold text-emerald-800 uppercase'>Full Home Address</p>
                         <input type="text" disabled={!isEdit} className='bg-transparent w-full font-bold outline-none' value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
                     </div>
 
-                    {/* Skills */}
                     <div className={`p-3 rounded-xl ${isEdit ? 'bg-white ring-2 ring-emerald-400' : 'bg-gray-50'}`}>
                         <p className='text-[10px] font-bold text-emerald-800 uppercase'>Professional Skills</p>
                         <input type="text" disabled={!isEdit} placeholder="e.g. Wound Care, CPR, First Aid" className='bg-transparent w-full font-bold outline-none' value={formData.skills} onChange={e => setFormData({...formData, skills: e.target.value})} />
@@ -207,7 +197,7 @@ const CaretakerProfile = () => {
                     onClick={handleDeactivate}
                     className='text-rose-500 text-sm font-semibold hover:underline transition-all mt-2'
                 >
-                    Deactivate Account
+                    Delete Account
                 </button>
             </div>
             </div>

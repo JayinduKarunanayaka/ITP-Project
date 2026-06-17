@@ -1,18 +1,31 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import axios from 'axios';
 import { AppContent } from '../../context/AppContext';
+
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
 
 const BmiTrackingTile = ({ patientId, refreshTrigger }) => {
     const [latestBmi, setLatestBmi] = useState(null);
     const { backendUrl } = useContext(AppContent);
 
-    const fetchBMI = async () => {
+    const fetchBMI = useCallback(async () => {
         try {
             const url = patientId 
                 ? `${backendUrl}/api/bmi?patientId=${patientId}` 
                 : `${backendUrl}/api/bmi`;
-            const { data } = await axios.get(url, { withCredentials: true });
-            
+            const { data } = await axios.get(url, { headers: getAuthHeaders() });
+
             if (data.success && data.bmis && data.bmis.length > 0) {
                 setLatestBmi(data.bmis[data.bmis.length - 1]);
             } else {
@@ -21,18 +34,19 @@ const BmiTrackingTile = ({ patientId, refreshTrigger }) => {
         } catch (error) {
             console.error("Error fetching BMI for tracking tile:", error.message);
         }
-    };
+    }, [backendUrl, patientId]);
 
     useEffect(() => {
-        fetchBMI();
-        
-        // Listen for updates from PatientBMI component or dashboard triggers
-        window.addEventListener('bmiUpdated', fetchBMI);
-        
+        (async () => {
+            await fetchBMI();
+        })();
+
+        const onBmiUpdated = () => fetchBMI();
+        window.addEventListener('bmiUpdated', onBmiUpdated);
         return () => {
-            window.removeEventListener('bmiUpdated', fetchBMI);
+            window.removeEventListener('bmiUpdated', onBmiUpdated);
         };
-    }, [backendUrl, patientId, refreshTrigger]);
+    }, [fetchBMI, refreshTrigger]);
 
     const getThemeColors = (status) => {
         switch (status) {

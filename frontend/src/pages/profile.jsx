@@ -44,7 +44,10 @@ const Profile = () => {
     const sendOtpHandler = async () => {
         try {
             axios.defaults.withCredentials = true;
-            const { data } = await axios.post(backendUrl + '/api/auth/send-verify-otp');
+            const token = localStorage.getItem('med_app_auth_token') || '';
+            const { data } = await axios.post(backendUrl + '/api/auth/send-verify-otp', {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
             if (data.success) {
                 navigate('/email-verify');
                 toast.success(data.message);
@@ -71,11 +74,44 @@ const Profile = () => {
             toast.error(error.message)
         }
     }
-
+    
     const handleUpdate = async () => {
+        const nameRegex = /^[A-Za-z\s]+$/;
+        const phoneRegex = /^\+?[0-9]+$/;
+
+        if (!formData.name.trim()) {
+            return toast.error("Name is required");
+        } else if (!nameRegex.test(formData.name)) {
+            return toast.error("Name can only contain letters and spaces");
+        }
+
+        if (formData.birthday) {
+            const birthDate = new Date(formData.birthday);
+            if (birthDate > new Date()) {
+                return toast.error("Birthday cannot be in the future");
+            }
+        }
+
+        if (formData.weight && (formData.weight <= 0 || formData.weight > 500)) {
+            return toast.error("Please enter a realistic weight in kg");
+        }
+        if (formData.height && (formData.height <= 0 || formData.height > 10)) {
+            return toast.error("Please enter a realistic height in feet");
+        }
+
+        if (formData.pharmacyNumber && !phoneRegex.test(formData.pharmacyNumber)) {
+            return toast.error("Pharmacy number must be numeric");
+        }
+        if (formData.emergencyContact && !phoneRegex.test(formData.emergencyContact)) {
+            return toast.error("Emergency contact must be numeric");
+        }
+
         try {
             axios.defaults.withCredentials = true;
-            const { data } = await axios.post(backendUrl + '/api/user/update-data', formData)
+            const token = localStorage.getItem('med_app_auth_token') || '';
+            const { data } = await axios.post(backendUrl + '/api/user/update-data', formData, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
             if (data.success) {
                 toast.success(data.message)
                 setIsEdit(false)
@@ -87,14 +123,17 @@ const Profile = () => {
     }
 
     const handleDeactivate = async () => {
-        const password = prompt("Enter password to deactivate account:")
+        const password = prompt("Enter password to delete account:")
         if (!password) return
 
         try {
             axios.defaults.withCredentials = true;
-            const { data } = await axios.post(backendUrl + '/api/user/deactivate', { password })
+            const token = localStorage.getItem('med_app_auth_token') || '';
+            const { data } = await axios.post(backendUrl + '/api/user/deactivate', { password }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
             if (data.success) {
-                toast.success("Account deactivated")
+                toast.success("Account deleted")
                 setIsLoggedin(false)
                 setUserData(false)
                 navigate('/')
@@ -102,7 +141,7 @@ const Profile = () => {
                 toast.error(data.message)
             }
         } catch (error) {
-            toast.error("Deactivation failed")
+            toast.error("Delete failed")
         }
     }
 
@@ -131,10 +170,15 @@ const Profile = () => {
                 </div>
                 
                 <div className='space-y-4 text-gray-700'>
-
                     <div className={`p-3 rounded-xl transition-all ${isEdit ? 'bg-white ring-2 ring-emerald-50 border border-emerald-400' : 'bg-gray-50'}`}>
                         <p className='text-xs font-bold text-emerald-800 uppercase'>Name</p>
-                        <input type="text" disabled={!isEdit} className='bg-transparent w-full font-semibold outline-none' value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                        <input 
+                            type="text" 
+                            disabled={!isEdit} 
+                            className='bg-transparent w-full font-semibold outline-none' 
+                            value={formData.name} 
+                            onChange={e => setFormData({...formData, name: e.target.value.replace(/[^A-Za-z\s]/g, '')})} 
+                        />
                     </div>
 
                     <div className='grid grid-cols-2 gap-4'>
@@ -158,26 +202,32 @@ const Profile = () => {
                                 <option value="Other">Other</option>
                             </select>
                         </div>
-                        <div className={`p-3 rounded-xl transition-all ${isEdit ? 'bg-white ring-2 ring-emerald-50 border border-emerald-400' : 'bg-gray-50'}`}>
-                            <p className='text-xs font-bold text-emerald-800 uppercase'>Language</p>
-                            <input type="text" disabled={!isEdit} className='bg-transparent w-full font-medium outline-none' value={formData.primaryLanguage} onChange={e => setFormData({...formData, primaryLanguage: e.target.value})} />
-                        </div>
                     </div>
 
                     <div className='grid grid-cols-2 gap-4'>
-                        <div className={`p-3 rounded-xl transition-all ${isEdit ? 'bg-white ring-2 ring-emerald-50 border border-emerald-400' : 'bg-gray-50'}`}>
-                            <p className='text-xs font-bold text-emerald-800 uppercase'>Height (ft)</p>
-                            <input type="number"  disabled={!isEdit} className='bg-transparent w-full font-medium outline-none' value={formData.height} onChange={e => setFormData({...formData, height: e.target.value})} />
-                        </div>
-                        {/* <div className='bg-gray-100 p-3 rounded-xl'>
-                            <p className='text-xs font-bold text-gray-400 uppercase'>BMI (Auto)</p>
-                            <p className='font-medium text-gray-500'>{userData.bmi || 'N/A'}</p>
-                        </div> */}
-                    </div>
+                            <div className={`p-3 rounded-xl transition-all ${isEdit ? 'bg-white ring-2 ring-emerald-50 border border-emerald-400' : 'bg-gray-50'}`}>
+                                <p className='text-xs font-bold text-emerald-800 uppercase'>Weight (kg)</p>
+                                <input 
+                                    type="number" 
+                                    min="0"
+                                    disabled={!isEdit} 
+                                    className='bg-transparent w-full font-medium outline-none' 
+                                    value={formData.weight} 
+                                    onChange={e => setFormData({...formData, weight: e.target.value})} 
+                                />
+                            </div>
 
-                    <div className={`p-3 rounded-xl transition-all ${isEdit ? 'bg-white ring-2 ring-emerald-50 border border-emerald-400' : 'bg-gray-50'}`}>
-                        <p className='text-xs font-bold text-emerald-800 uppercase'>Weight (kg)</p>
-                        <input type="number" disabled={!isEdit} className='bg-transparent w-full font-medium outline-none' value={formData.weight} onChange={e => setFormData({...formData, weight: e.target.value})} />
+                            <div className={`p-3 rounded-xl transition-all ${isEdit ? 'bg-white ring-2 ring-emerald-50 border border-emerald-400' : 'bg-gray-50'}`}>
+                                <p className='text-xs font-bold text-emerald-800 uppercase'>Height (ft)</p>
+                                <input 
+                                    type="number" 
+                                    min="0"
+                                    disabled={!isEdit} 
+                                    className='bg-transparent w-full font-medium outline-none' 
+                                    value={formData.height} 
+                                    onChange={e => setFormData({...formData, height: e.target.value})} 
+                                />
+                            </div>
                     </div>
 
                     <div className={`p-3 rounded-xl transition-all ${isEdit ? 'bg-white ring-2 ring-emerald-50 border border-emerald-400' : 'bg-gray-50'}`}>
@@ -188,11 +238,23 @@ const Profile = () => {
                     <div className='mt-4 space-y-4'>
                         <div className={`p-3 rounded-xl transition-all ${isEdit ? 'bg-white ring-2 ring-emerald-50 border border-emerald-400' : 'bg-gray-50'}`}>
                             <p className='text-xs font-bold text-emerald-800 uppercase'>Pharmacy Number</p>
-                            <input type="text" disabled={!isEdit} className='bg-transparent w-full font-medium outline-none' value={formData.pharmacyNumber} onChange={e => setFormData({...formData, pharmacyNumber: e.target.value})} />
+                            <input 
+                                type="tel" 
+                                disabled={!isEdit} 
+                                className='bg-transparent w-full font-medium outline-none' 
+                                value={formData.pharmacyNumber} 
+                                onChange={e => setFormData({...formData, pharmacyNumber: e.target.value.replace(/[^0-9+]/g, '')})} 
+                            />
                         </div>
                         <div className={`p-3 rounded-xl transition-all ${isEdit ? 'bg-white ring-2 ring-emerald-50 border border-emerald-400' : 'bg-gray-50'}`}>
                             <p className='text-xs font-bold text-emerald-800 uppercase'>Emergency Contact</p>
-                            <input type="text" disabled={!isEdit} className='bg-transparent w-full font-medium outline-none' value={formData.emergencyContact} onChange={e => setFormData({...formData, emergencyContact: e.target.value})} />
+                            <input 
+                                type="tel" 
+                                disabled={!isEdit} 
+                                className='bg-transparent w-full font-medium outline-none' 
+                                value={formData.emergencyContact} 
+                                onChange={e => setFormData({...formData, emergencyContact: e.target.value.replace(/[^0-9+]/g, '')})} 
+                            />
                         </div>
                     </div>
                 </div>
@@ -204,7 +266,7 @@ const Profile = () => {
                         <button onClick={handleUpdate} className='w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all'>Save Details</button>
                     )}
                     <button onClick={logout} className='w-full bg-gray-800 text-white py-3 rounded-xl font-bold hover:bg-black transition-all'>Logout</button>
-                    <button onClick={handleDeactivate} className='w-full text-red-500 py-2 text-sm font-semibold hover:underline transition-all mt-2'>Deactivate Account</button>
+                    <button onClick={handleDeactivate} className='w-full text-red-500 py-2 text-sm font-semibold hover:underline transition-all mt-2'>Delete Account</button>
                 </div>
             </div>
         </div>

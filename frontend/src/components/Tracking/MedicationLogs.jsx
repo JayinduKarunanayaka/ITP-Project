@@ -1,6 +1,19 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import axios from 'axios';
 import { AppContent } from '../../context/AppContext.jsx';
+
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
 
 const MedicationLogs = ({ patientId, onLogAdded }) => {
     const { backendUrl, userData } = useContext(AppContent);
@@ -21,21 +34,23 @@ const MedicationLogs = ({ patientId, onLogAdded }) => {
     const [editingLogId, setEditingLogId] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
-    useEffect(() => {
-        fetchLogs();
-    }, [targetUserId]);
-
-    const fetchLogs = async () => {
+    const fetchLogs = useCallback(async () => {
         if (!targetUserId) return;
         try {
-            const response = await axios.get(`${backendUrl}/api/tracking/history/${targetUserId}`, { withCredentials: true });
+            const response = await axios.get(`${backendUrl}/api/tracking/history/${targetUserId}`, { headers: getAuthHeaders() });
             setLogs(response.data.data);
             setLoading(false);
-        } catch (err) {
+        } catch {
             setError('Failed to fetch logs from server');
             setLoading(false);
         }
-    };
+    }, [backendUrl, targetUserId]);
+
+    useEffect(() => {
+        (async () => {
+            await fetchLogs();
+        })();
+    }, [fetchLogs]);
 
     const formatDate = (dateString) => {
         const dateObj = new Date(dateString);
@@ -70,9 +85,10 @@ const MedicationLogs = ({ patientId, onLogAdded }) => {
                 medicationId: '678fb7e0349896798e987654'
             };
 
+            const config = { headers: getAuthHeaders() };
             if (editingLogId) {
                 // Update existing log
-                const response = await axios.put(`${backendUrl}/api/tracking/${editingLogId}`, submissionData, { withCredentials: true });
+                const response = await axios.put(`${backendUrl}/api/tracking/${editingLogId}`, submissionData, config);
                 if (response.data.success) {
                     setLogs(logs.map(log => log._id === editingLogId ? response.data.data : log));
                     setEditingLogId(null);
@@ -82,7 +98,7 @@ const MedicationLogs = ({ patientId, onLogAdded }) => {
                 }
             } else {
                 // Create new log
-                const response = await axios.post(`${backendUrl}/api/tracking/record`, submissionData, { withCredentials: true });
+                const response = await axios.post(`${backendUrl}/api/tracking/record`, submissionData, config);
                 if (response.data.success) {
                     setLogs([response.data.data, ...logs]);
                     setShowForm(false);
@@ -103,7 +119,7 @@ const MedicationLogs = ({ patientId, onLogAdded }) => {
         
         setIsProcessing(true);
         try {
-            const response = await axios.delete(`${backendUrl}/api/tracking/${logId}`, { withCredentials: true });
+            const response = await axios.delete(`${backendUrl}/api/tracking/${logId}`, { headers: getAuthHeaders() });
             if (response.data.success) {
                 setLogs(logs.filter(log => log._id !== logId));
                 if (onLogAdded) onLogAdded();

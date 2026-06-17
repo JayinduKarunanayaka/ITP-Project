@@ -4,15 +4,28 @@ import axios from 'axios';
 import LoggedIn from '../components/loggedin';
 import { AppContent } from '../context/AppContext';
 
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
+
 const Inventory = () => {
-    const { userData, backendUrl } = useContext(AppContent);
+    const { backendUrl } = useContext(AppContent);
     const navigate = useNavigate();
     const [medications, setMedications] = useState([]);
 
     useEffect(() => {
         const fetchMedications = async () => {
             try {
-                const { data } = await axios.get(`${backendUrl}/api/medications`, { withCredentials: true });
+                const { data } = await axios.get(`${backendUrl}/api/medications`, { headers: getAuthHeaders() });
                 if (data.success && data.meds) {
                     setMedications(data.meds);
                 }
@@ -31,6 +44,9 @@ const Inventory = () => {
         const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
         return expiry > today && expiry <= nextMonth;
     }).length;
+
+    const lowStockCount = medications.filter(med => med.stockCount > 0 && med.stockCount < 5).length;
+    const refillCount = medications.filter(med => med.stockCount === 0).length;
 
     return (
         <LoggedIn>
@@ -66,8 +82,8 @@ const Inventory = () => {
                                 </svg>
                             </div>
                             <h3 className="text-slate-700 font-semibold text-sm">Low Stock Medicines</h3>
-                            <p className="text-4xl font-bold text-red-500 my-2">12</p>
-                            <p className="text-slate-400 text-xs">Items running low</p>
+                            <p className="text-4xl font-bold text-red-500 my-2">{lowStockCount}</p>
+                            <p className="text-slate-400 text-xs">Items running low ( &lt; 5 )</p>
                         </div>
 
                         {/* Card 3 */}
@@ -78,8 +94,8 @@ const Inventory = () => {
                                 </svg>
                             </div>
                             <h3 className="text-slate-700 font-semibold text-sm">Need to Refill</h3>
-                            <p className="text-4xl font-bold text-blue-500 my-2">5</p>
-                            <p className="text-slate-400 text-xs">Refill orders pending</p>
+                            <p className="text-4xl font-bold text-blue-500 my-2">{refillCount}</p>
+                            <p className="text-slate-400 text-xs">Out of stock items</p>
                         </div>
                     </div>
                 </div>

@@ -1,15 +1,25 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContent } from '../context/AppContext';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
 const CaretakerDashboard = () => {
-    // 1. Added getUserData here to refresh global state
     const { backendUrl, userData, getUserData } = useContext(AppContent);
     const [patients, setPatients] = useState([]);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const navigate = useNavigate();
+
+    const [formData, setFormData] = useState({
+        name: '',
+        birthday: '',
+        gender: 'Male',
+        mobile: '',
+        email: '', 
+        primaryLanguage: 'Sinhala',
+        pharmacyNumber: '',
+        emergencyContact: ''
+    });
 
     const calculateAge = (birthday) => {
         if (!birthday) return '';
@@ -23,36 +33,66 @@ const CaretakerDashboard = () => {
         return age >= 0 ? age : 0;
     };
 
-    const [formData, setFormData] = useState({
-        name: '',
-        birthday: '',
-        gender: 'Male',
-        mobile: '',
-        email: '', 
-        primaryLanguage: 'Sinhala',
-        pharmacyNumber: '',
-        emergencyContact: ''
-    });
-
-    const fetchMyPatients = async () => {
+    const readSavedSessionToken = () => {
         try {
-            const { data } = await axios.get(backendUrl + '/api/user/my-patients', { withCredentials: true });
+            return window.localStorage.getItem('med_app_auth_token') || '';
+        } catch {
+            return '';
+        }
+    };
+
+    const getAuthHeaders = useCallback(() => {
+        const token = readSavedSessionToken();
+        return token ? { Authorization: `Bearer ${token}` } : undefined;
+    }, []);
+
+    const fetchMyPatients = useCallback(async () => {
+        try {
+            const { data } = await axios.get(backendUrl + '/api/user/my-patients', { headers: getAuthHeaders() });
             if (data.success) setPatients(data.patients);
         } catch (error) {
             console.error("Error fetching patients", error);
         }
-    };
+    }, [backendUrl, getAuthHeaders]);
 
+    // --- ENHANCED VALIDATION LOGIC ---
     const handleCreatePatient = async (e) => {
         e.preventDefault();
+
+        const nameRegex = /^[A-Za-z\s]+$/;
+        const phoneRegex = /^\+?[0-9]+$/;
+
+        // 1. Name Validation
+        if (!formData.name.trim()) {
+            return toast.error("Patient name is required");
+        } else if (!nameRegex.test(formData.name)) {
+            return toast.error("Patient name can only contain letters");
+        }
+
+        // 2. Birthday Validation
+        if (formData.birthday) {
+            const birthDate = new Date(formData.birthday);
+            if (birthDate > new Date()) {
+                return toast.error("Birthday cannot be in the future");
+            }
+        }
+
+        // 3. Contact Number Validations
+        if (!phoneRegex.test(formData.mobile)) {
+            return toast.error("Valid mobile number is required");
+        }
+        if (formData.pharmacyNumber && !phoneRegex.test(formData.pharmacyNumber)) {
+            return toast.error("Pharmacy number must be numeric");
+        }
+        if (!phoneRegex.test(formData.emergencyContact)) {
+            return toast.error("Valid emergency contact is required");
+        }
+
         try {
-            const { data } = await axios.post(backendUrl + '/api/user/create-patient', formData, { withCredentials: true });
+            const { data } = await axios.post(backendUrl + '/api/user/create-patient', formData, { headers: getAuthHeaders() });
             if (data.success) {
                 toast.success(data.message);
-                
-                // 2. REFRESH GLOBAL DATA: This updates the counter in your Profile instantly
                 await getUserData(); 
-
                 setFormData({ 
                     name: '', birthday: '', gender: 'Male', mobile: '', 
                     email: '', primaryLanguage: 'Sinhala', pharmacyNumber: '', emergencyContact: '' 
@@ -62,7 +102,7 @@ const CaretakerDashboard = () => {
             } else {
                 toast.error(data.message);
             }
-        } catch (error) {
+        } catch {
             toast.error("Failed to create patient");
         }
     };
@@ -71,13 +111,10 @@ const CaretakerDashboard = () => {
         if (!window.confirm("Are you sure you want to remove this patient?")) return;
 
         try {
-            const { data } = await axios.post(backendUrl + '/api/user/remove-patient', { patientId }, { withCredentials: true });
+            const { data } = await axios.post(backendUrl + '/api/user/remove-patient', { patientId }, { headers: getAuthHeaders() });
             if (data.success) {
                 toast.success("Patient removed successfully");
-                
-                // 3. REFRESH GLOBAL DATA: This reduces the counter in your Profile instantly
                 await getUserData(); 
-
                 fetchMyPatients(); 
             } else {
                 toast.error(data.message);
@@ -87,7 +124,9 @@ const CaretakerDashboard = () => {
         }
     };
 
-    useEffect(() => { fetchMyPatients(); }, []);
+    useEffect(() => {
+        fetchMyPatients();
+    }, [fetchMyPatients]);
 
     return (
         <div className='p-6 sm:p-10 bg-emerald-50 min-h-screen'>
@@ -119,14 +158,22 @@ const CaretakerDashboard = () => {
                     <div className='bg-white p-8 rounded-3xl shadow-xl border border-emerald-100 mb-10 animate-in fade-in duration-300'>
                         <h2 className='text-xl font-bold mb-6 text-gray-800 border-b pb-2 border-emerald-50'>Register Patient</h2>
                         <form onSubmit={handleCreatePatient} className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+                            
+                            {/* Filtered Name Input */}
                             <div className='flex flex-col gap-1'>
                                 <label className='text-sm font-semibold text-gray-600 ml-1'>Full Name</label>
-                                <input type="text" placeholder="Patient Name" className='p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 outline-none' 
-                                    value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+                                <input 
+                                    type="text" 
+                                    placeholder="Patient Name" 
+                                    className='p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 outline-none focus:ring-2 focus:ring-emerald-400' 
+                                    value={formData.name} 
+                                    onChange={e => setFormData({...formData, name: e.target.value.replace(/[^A-Za-z\s]/g, '')})} 
+                                    required 
+                                />
                             </div>
 
                             <div className='flex flex-col gap-1'>
-                                <label className='text-sm font-semibold text-gray-600 ml-1 text-emerald-800'>
+                                <label className='text-sm font-semibold ml-1 text-emerald-800'>
                                     Birthday (Age: {calculateAge(formData.birthday)})
                                 </label>
                                 <input type="date" className='p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 outline-none' 
@@ -143,20 +190,17 @@ const CaretakerDashboard = () => {
                                 </select>
                             </div>
 
-                            <div className='flex flex-col gap-1'>
-                                <label className='text-sm font-semibold text-gray-600 ml-1'>Primary Language</label>
-                                <select className='p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 outline-none'
-                                    value={formData.primaryLanguage} onChange={e => setFormData({...formData, primaryLanguage: e.target.value})}>
-                                    <option value="English">English</option>
-                                    <option value="Sinhala">Sinhala</option>
-                                    <option value="Tamil">Tamil</option>
-                                </select>
-                            </div>
-
+                            {/* Filtered Mobile Input */}
                             <div className='flex flex-col gap-1'>
                                 <label className='text-sm font-semibold text-gray-600 ml-1'>Contact Number</label>
-                                <input type="text" placeholder="Mobile Number" className='p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 outline-none' 
-                                    value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} required />
+                                <input 
+                                    type="text" 
+                                    placeholder="Mobile Number" 
+                                    className='p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 outline-none' 
+                                    value={formData.mobile} 
+                                    onChange={e => setFormData({...formData, mobile: e.target.value.replace(/[^0-9+]/g, '')})} 
+                                    required 
+                                />
                             </div>
 
                             <div className='flex flex-col gap-1'>
@@ -165,16 +209,29 @@ const CaretakerDashboard = () => {
                                     value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                             </div>
 
+                            {/* Filtered Pharmacy Number */}
                             <div className='flex flex-col gap-1'>
                                 <label className='text-sm font-semibold text-gray-600 ml-1'>Pharmacy Number</label>
-                                <input type="text" placeholder="Pharmacy Phone" className='p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 outline-none' 
-                                    value={formData.pharmacyNumber} onChange={e => setFormData({...formData, pharmacyNumber: e.target.value})} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Pharmacy Phone" 
+                                    className='p-3 rounded-xl border border-emerald-100 bg-emerald-50/30 outline-none' 
+                                    value={formData.pharmacyNumber} 
+                                    onChange={e => setFormData({...formData, pharmacyNumber: e.target.value.replace(/[^0-9+]/g, '')})} 
+                                />
                             </div>
 
+                            {/* Filtered Emergency Number */}
                             <div className='flex flex-col gap-1'>
                                 <label className='text-sm font-semibold text-gray-600 ml-1'>Emergency Number</label>
-                                <input type="text" placeholder="Emergency Contact" className='p-3 rounded-xl border border-rose-100 bg-rose-50/30 outline-none' 
-                                    value={formData.emergencyContact} onChange={e => setFormData({...formData, emergencyContact: e.target.value})} required />
+                                <input 
+                                    type="text" 
+                                    placeholder="Emergency Contact" 
+                                    className='p-3 rounded-xl border border-rose-100 bg-rose-50/30 outline-none' 
+                                    value={formData.emergencyContact} 
+                                    onChange={e => setFormData({...formData, emergencyContact: e.target.value.replace(/[^0-9+]/g, '')})} 
+                                    required 
+                                />
                             </div>
 
                             <button className='md:col-span-2 bg-emerald-900 text-white py-4 rounded-xl font-bold hover:bg-black transition-all shadow-lg mt-2'>
@@ -205,7 +262,7 @@ const CaretakerDashboard = () => {
                                     </div>
                                     <div>
                                         <h3 className='font-bold text-gray-800 text-lg leading-tight'>{patient.name}</h3>
-                                        <p className='text-xs text-emerald-600 font-medium'>{patient.email.includes('@noemail.com') ? 'No Email Provided' : patient.email}</p>
+                                        <p className='text-xs text-emerald-600 font-medium'>{patient.email?.includes('@noemail.com') ? 'No Email Provided' : patient.email}</p>
                                     </div>
                                 </div>
 

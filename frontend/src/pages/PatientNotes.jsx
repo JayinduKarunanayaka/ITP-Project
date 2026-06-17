@@ -4,6 +4,19 @@ import axios from 'axios';
 import { AppContent } from '../context/AppContext';
 import PatientSidebar from '../components/PatientSidebar';
 
+const readSavedSessionToken = () => {
+    try {
+        return window.localStorage.getItem('med_app_auth_token') || '';
+    } catch {
+        return '';
+    }
+};
+
+const getAuthHeaders = () => {
+    const token = readSavedSessionToken();
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+};
+
 const PatientNotes = () => {
     // 1. MUST BE 'patientId' to match <Route path='/patient/:patientId/helthNotes' />
     const { patientId } = useParams(); 
@@ -19,7 +32,7 @@ const PatientNotes = () => {
                     // This matches: const { patientId } = req.params; in your controller
                     const { data } = await axios.get(
                         `${backendUrl}/api/user/get-patient/${patientId}`, 
-                        { withCredentials: true }
+                        { headers: getAuthHeaders() }
                     );
 
                     if (data.success) {
